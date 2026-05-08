@@ -7,6 +7,7 @@
   "scripts": {
     "gen": "tsx src/cli.ts",
     "verify": "tsx src/verify-cli.ts",
+    "publish": "tsx src/publish-cli.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
