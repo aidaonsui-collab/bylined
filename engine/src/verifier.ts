@@ -44,7 +44,7 @@ export async function verifyClaim(args: {
 }): Promise<VerificationResult> {
   let page;
   try {
-    page = await fetchPage(args.url);
+    page = await fetchPage(args.url, 15000, { costType: "verification_fetch" });
   } catch (e) {
     return {
       passed: false,

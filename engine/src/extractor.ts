@@ -28,13 +28,16 @@ export async function extractFacts(page: FetchedPage): Promise<Fact[]> {
   const text = page.plainText.slice(0, 12000);
   if (text.length < 200) return [];
 
-  const raw = await chatJSON<RawFact[] | { facts: RawFact[] }>([
-    { role: "system", content: SYSTEM_PROMPT },
-    {
-      role: "user",
-      content: `URL: ${page.url}\n\nPage text:\n${text}\n\nExtract facts as a JSON array.`,
-    },
-  ]);
+  const raw = await chatJSON<RawFact[] | { facts: RawFact[] }>(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `URL: ${page.url}\n\nPage text:\n${text}\n\nExtract facts as a JSON array.`,
+      },
+    ],
+    { costType: "llm_extraction" }
+  );
 
   const arr = Array.isArray(raw) ? raw : raw.facts;
   if (!Array.isArray(arr)) return [];

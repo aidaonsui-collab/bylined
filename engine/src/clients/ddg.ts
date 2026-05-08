@@ -12,6 +12,7 @@
 // SerpResult[] return shape is the contract the orchestrator depends on.
 
 import * as cheerio from "cheerio";
+import { logCost } from "../cost.js";
 import type { SerpResult } from "../types.js";
 
 const USER_AGENT =
@@ -38,6 +39,7 @@ function extractActualUrl(href: string | undefined): string | null {
 }
 
 export async function searchSerp(query: string, count = 10): Promise<SerpResult[]> {
+  const startedAt = Date.now();
   const body = new URLSearchParams({ q: query }).toString();
   const res = await fetch(ENDPOINT, {
     method: "POST",
@@ -56,6 +58,12 @@ export async function searchSerp(query: string, count = 10): Promise<SerpResult[
   const html = await res.text();
   const $ = cheerio.load(html);
   const results: SerpResult[] = [];
+  logCost({
+    event_type: "serp_fetch",
+    provider: "duckduckgo",
+    duration_ms: Date.now() - startedAt,
+    metadata: { query, query_count: 1 },
+  });
 
   $(".result").each((_, el) => {
     if (results.length >= count) return false;

@@ -106,6 +106,6 @@ Write an SEO article. Body is plain prose with no [^N] markers — citations are
       { role: "system", content: systemContent },
       { role: "user", content: userPrompt },
     ],
-    { max_tokens: 6000 }
+    { max_tokens: 6000, costType: "llm_generation" }
   );
 }

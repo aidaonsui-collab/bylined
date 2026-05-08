@@ -9,6 +9,8 @@
 // (which it will), the receipt still resolves to an archived copy of the
 // page that contained the cited passage at generation time.
 
+import { logCost } from "../cost.js";
+
 const SAVE_ENDPOINT = "https://web.archive.org/save";
 const USER_AGENT =
   "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://bylined.so/bot)";
@@ -31,14 +33,24 @@ function buildCalendarUrl(url: string): string {
 // limit, network), we still return a calendar URL pointing at any existing
 // snapshots Wayback may have from previous crawls.
 export function snapshotUrl(url: string): WaybackSnapshot {
+  const startedAt = Date.now();
   fetch(`${SAVE_ENDPOINT}/${url}`, {
     method: "GET",
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     redirect: "follow",
-  }).catch((e: unknown) => {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.warn(`[wayback] save trigger failed for ${url}: ${msg}`);
-  });
+  })
+    .then(() => {
+      logCost({
+        event_type: "wayback_save",
+        provider: "wayback",
+        duration_ms: Date.now() - startedAt,
+        metadata: { url },
+      });
+    })
+    .catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[wayback] save trigger failed for ${url}: ${msg}`);
+    });
 
   return {
     wayback_url: buildCalendarUrl(url),

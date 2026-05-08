@@ -4,6 +4,7 @@ import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { generate } from "./orchestrator.js";
 import type { VoiceFingerprint } from "./clients/voice.js";
+import { startRun } from "./cost.js";
 
 const rawArgs = process.argv.slice(2);
 const voiceIdx = rawArgs.indexOf("--voice");
@@ -37,14 +38,13 @@ const keyword = args.join(" ");
 
 (async () => {
   try {
+    const slug = keyword.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
+    const runId = startRun(slug);
+    console.log(`[bylined] cost log: out/costs/${runId}.jsonl`);
+
     const article = await generate({ keyword, voice });
 
     mkdirSync("out", { recursive: true });
-    const slug = keyword
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")
-      .slice(0, 60);
     const filename = `${new Date().toISOString().slice(0, 10)}-${slug}.json`;
     const outPath = join("out", filename);
     writeFileSync(outPath, JSON.stringify(article, null, 2));

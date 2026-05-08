@@ -2,6 +2,8 @@
 // Their HTTP API resembles OpenAI's chat completions.
 // Endpoint: <base>/text/chatcompletion_v2
 
+import { logCost, type CostEventType } from "../cost.js";
+
 export type Message = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -21,6 +23,8 @@ export interface ChatOptions {
   model?: string;
   temperature?: number;
   max_tokens?: number;
+  // Used for cost tracking — defaults to "llm_other".
+  costType?: CostEventType;
 }
 
 function getConfig() {
@@ -37,6 +41,7 @@ export async function chat(messages: Message[], opts: ChatOptions = {}): Promise
   const { apiKey, baseUrl, model: defaultModel } = getConfig();
   const model = opts.model ?? defaultModel;
   const baseTemp = opts.temperature ?? 0.4;
+  const startedAt = Date.now();
 
   // Up to 2 attempts: empty responses can occur transiently. Slightly raise
   // temperature on retry so the model doesn't reproduce the exact empty path.
@@ -69,7 +74,16 @@ export async function chat(messages: Message[], opts: ChatOptions = {}): Promise
 
     const choice = data.choices?.[0];
     const content = choice?.message?.content;
-    if (content) return content;
+    if (content) {
+      logCost({
+        event_type: opts.costType ?? "llm_other",
+        provider: "minimax",
+        model,
+        duration_ms: Date.now() - startedAt,
+        metadata: { attempt },
+      });
+      return content;
+    }
 
     lastDetail = `finish_reason=${choice?.finish_reason ?? "unknown"}`;
     if (attempt === 0) {

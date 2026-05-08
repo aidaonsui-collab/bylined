@@ -123,7 +123,7 @@ export async function extractFingerprint(homepage: string): Promise<VoiceFingerp
         new URL(homepage).hostname
       }:\n\n${corpus}\n\nReturn the JSON fingerprint.`,
     },
-  ], { max_tokens: 2000 });
+  ], { max_tokens: 2000, costType: "llm_voice" });
 
   return {
     source_url: homepage,

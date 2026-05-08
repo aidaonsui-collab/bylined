@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { logCost, type CostEventType } from "./cost.js";
 
 export interface FetchedPage {
   url: string;
@@ -12,9 +13,14 @@ export interface FetchedPage {
 const USER_AGENT =
   "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://bylined.so/bot)";
 
-export async function fetchPage(url: string, timeoutMs = 15000): Promise<FetchedPage> {
+export async function fetchPage(
+  url: string,
+  timeoutMs = 15000,
+  opts: { costType?: CostEventType } = {}
+): Promise<FetchedPage> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
 
   try {
     const res = await fetch(url, {
@@ -34,6 +40,13 @@ export async function fetchPage(url: string, timeoutMs = 15000): Promise<Fetched
     $("script, style, noscript, iframe, svg, nav, footer, header, aside").remove();
     const plainText = $("body").text().replace(/\s+/g, " ").trim();
     const title = $("title").first().text().trim();
+
+    logCost({
+      event_type: opts.costType ?? "page_fetch",
+      provider: "fetch",
+      duration_ms: Date.now() - startedAt,
+      metadata: { url, status: res.status, bytes: html.length },
+    });
 
     return {
       url,

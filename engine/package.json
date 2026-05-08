@@ -10,6 +10,7 @@
     "publish": "tsx src/publish-cli.ts",
     "webflow": "tsx src/webflow-cli.ts",
     "voice": "tsx src/voice-cli.ts",
+    "costs": "tsx src/costs-cli.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
