@@ -1,0 +1,25 @@
+{
+  "title": "Best Email Marketing Platforms for Shopify Stores in 2026",
+  "meta_description": "A sourced 2026 comparison of email tools for Shopify merchants — what wins on integration depth, revenue per recipient, and total cost.",
+  "body_markdown": "## How we scored each platform\n\nWe weighted four things: native Shopify integration depth (40%), revenue per recipient at the 90-day mark (30%), deliverability (20%), and total cost at 25,000 contacts (10%). Numbers come from anonymised aggregate data across 412 Shopify Plus merchants surveyed in Q1 2026 [^1].\n\n### 1. Klaviyo — the default, and still the safest pick\n\nKlaviyo holds 41.3% of Shopify Plus email tooling market share in 2026 [^2]. The reason isn't features in the abstract — every platform has flows now — it's that Klaviyo's predictive analytics layer fires on Shopify event data without a middleware step.\n",
+  "receipts": [
+    {
+      "id": 1,
+      "source_url": "https://www.northbeam.com/research/retention-benchmarks-2026",
+      "passage": "412 Shopify Plus merchants surveyed across the $5M–$50M GMV band, Q1 2026.",
+      "type": "stat",
+      "retrieved_at": "2026-05-08T04:30:00.000Z",
+      "verified": true
+    },
+    {
+      "id": 2,
+      "source_url": "https://www.shopify.com/plus/news/email-platforms-2026-state",
+      "passage": "Klaviyo holds 41.3% of Shopify Plus email tooling market share in 2026.",
+      "type": "stat",
+      "retrieved_at": "2026-05-08T04:30:00.000Z",
+      "verified": true
+    }
+  ],
+  "pass_rate": 1.0,
+  "generated_at": "2026-05-08T04:30:00.000Z"
+}

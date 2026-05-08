@@ -1,0 +1,26 @@
+{
+  "name": "bylined-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bylined article generation pipeline with verification gate",
+  "scripts": {
+    "gen": "tsx src/cli.ts",
+    "verify": "tsx src/verify-cli.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.7",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

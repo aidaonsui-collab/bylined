@@ -13,6 +13,10 @@ out/
 .env
 .env.local
 .env.*.local
+.env.save
+.env.bak
+*.save
+*.bak
 *.key
 *.pem
 
