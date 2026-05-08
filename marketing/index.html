@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Bylined · Hands-off SEO that shows its work</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Bylined writes SEO articles, sources every claim, and posts them to your site daily. Get traffic from Google and ChatGPT — flat $39/mo, no credits, no surprises." />
+<meta property="og:title" content="Bylined · Get traffic from Google and ChatGPT, with receipts" />
+<meta property="og:description" content="Bylined writes SEO articles, sources every claim, and posts them to your site daily. Flat $39/mo." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- Icon symbol sprite. Hidden, referenced by <use href="#i-…"> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 4 L8 12 L14 20" />
+      <circle cx="14" cy="4" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="14" cy="20" r="1.6" fill="currentColor" stroke="none" />
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 6 9 17l-5-5"/>
+    </symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12h14M13 5l7 7-7 7"/>
+    </symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M5 3l14 9-14 9V3z"/>
+    </symbol>
+    <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+    </symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/>
+    </symbol>
+    <symbol id="i-bar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 3v18h18"/><path d="M7 16v-5M12 16V8M17 16v-3"/>
+    </symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 21c3 0 7-1 7-8V5H3v8h4M14 21c3 0 7-1 7-8V5h-7v8h4"/>
+    </symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    </symbol>
+    <symbol id="i-verify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 12l2 2 4-4"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </symbol>
+    <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v7H3V3h7"/>
+    </symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m6 9 6 6 6-6"/>
+    </symbol>
+    <!-- CMS glyphs (geometric placeholders — swap for real marks before launch) -->
+    <symbol id="i-cms-wordpress" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M3 12l4.5 8M9 5l5 13M14.5 5L11 18M21 12l-4 8" stroke-width="1.2"/>
+    </symbol>
+    <symbol id="i-cms-shopify" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7 6c1-3 4-3 5-3s2 0 3 2v2"/>
+      <path d="M5 8h13l1 13H4l1-13z"/>
+      <path d="M11 12s-1 1-1 3 2 2 2 3"/>
+    </symbol>
+    <symbol id="i-cms-webflow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M3 6l4 12 4-9 3 9 4-9 3 9"/>
+    </symbol>
+    <symbol id="i-cms-ghost" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M3 4h8M13 4h8M3 10h18M3 16h8M13 16h8M3 4v6M21 4v18l-3-2-3 2-3-2-3 2-3-2-3 2V4"/>
+    </symbol>
+    <symbol id="i-cms-notion" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="1.5"/>
+      <path d="M7 7v10M7 7l10 10M17 7v10"/>
+    </symbol>
+    <symbol id="i-cms-webhook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="12" cy="6" r="2.5"/>
+      <path d="M9 8l-3 8M15 8l3 8M9 18h6"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- Dev review toolbar — remove before launch -->
+<div class="dev-toggle" aria-label="Designer review controls">
+  <span class="dev-toggle-label">VIEW</span>
+  <div class="dev-toggle-group">
+    <button data-theme="dark" class="is-on" type="button">dark</button>
+    <button data-theme="light" type="button">light</button>
+  </div>
+  <button class="dev-toggle-swatch is-on" data-accent="chartreuse" type="button" title="Chartreuse" style="background:#D4FF3F"></button>
+  <button class="dev-toggle-swatch" data-accent="teal" type="button" title="Electric teal" style="background:#00E5C7"></button>
+</div>
+
+<div class="mkt-root">
+
+  <!-- ─── Top nav ─────────────────────────────────────────────── -->
+  <nav class="mkt-nav">
+    <div class="mkt-nav-inner">
+      <a class="mkt-brand" href="/">
+        <span class="brand-mark"><svg class="icon icon-sm"><use href="#i-logo"/></svg></span>
+        <span class="brand-wm">bylined</span>
+      </a>
+      <div class="mkt-nav-links">
+        <a href="receipts.html">Receipts</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="mkt-nav-cta">
+        <a class="btn btn-primary btn-sm">Start free <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ─── Hero ────────────────────────────────────────────────── -->
+  <header class="mkt-hero">
+    <div class="mkt-container">
+      <div class="hero-flag">
+        <span class="hero-flag-dot"></span> New · every article ships with sources
+      </div>
+      <h1 class="hero-h1 serif">
+        Get traffic from Google and ChatGPT, <span class="hero-h1-em">with receipts.<svg class="hero-squiggle" viewBox="0 0 320 14" preserveAspectRatio="none" aria-hidden="true"><path d="M2 8 Q 30 1, 60 7 Q 90 13, 120 6 Q 150 1, 180 8 Q 210 13, 240 6 Q 270 1, 318 8"/></svg></span>
+      </h1>
+      <p class="hero-lede">
+        Bylined writes, sources, and posts SEO articles that rank on Google and ChatGPT — by morning, every morning.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg">Start free for 14 days <svg class="icon"><use href="#i-arrow-right"/></svg></a>
+        <a class="btn btn-lg btn-ghost">See it run <svg class="icon icon-sm"><use href="#i-play"/></svg></a>
+      </div>
+      <div class="hero-cta-fine">
+        <svg class="icon icon-xs"><use href="#i-check"/></svg> $39/mo flat
+        <span class="dot-sep"></span>
+        <svg class="icon icon-xs"><use href="#i-check"/></svg> First article in 6 minutes
+        <span class="dot-sep"></span>
+        <svg class="icon icon-xs"><use href="#i-check"/></svg> No card, cancel any time
+      </div>
+      <!-- TODO: replace operator count with real beta number before launch -->
+      <div class="hero-social-proof">
+        <div class="hero-avatars">
+          <span class="hero-avatar" style="background: linear-gradient(135deg, #8B7B4E, #5BD898)">M</span>
+          <span class="hero-avatar" style="background: linear-gradient(135deg, #5BD898, #6DA8FF)">D</span>
+          <span class="hero-avatar" style="background: linear-gradient(135deg, #6DA8FF, #B79CFF)">L</span>
+          <span class="hero-avatar is-more">+</span>
+        </div>
+        <span class="hero-rating"><span class="stars">★★★★★</span> <b>4.9</b> · Loved by 200+ operators</span>
+      </div>
+    </div>
+
+    <div class="mkt-container mkt-container-wide">
+      <!-- ─── The wedge: source-receipts demo ─── -->
+      <div class="hero-demo" id="hero-demo">
+        <div class="hero-demo-chrome">
+          <div class="hero-chrome-l">
+            <span class="hero-tab is-active"><svg class="icon icon-xs"><use href="#i-file-text"/></svg> draft.md</span>
+          </div>
+          <div class="hero-chrome-r">
+            <span class="chip chip-warn">draft</span>
+            <span class="score">SERP <b class="mono">87</b></span>
+            <span class="score">AEO <b class="mono">92</b></span>
+            <span class="hero-publish">
+              <svg class="icon icon-xs"><use href="#i-send"/></svg> Publish to WordPress
+            </span>
+          </div>
+        </div>
+
+        <div class="hero-demo-body">
+          <div class="hero-demo-article">
+            <h2 class="hero-h2">How we scored each platform</h2>
+            <p class="hero-p">
+              We weighted four things: native Shopify integration depth (40%), revenue per recipient at the 90-day mark (30%), deliverability (20%), and total cost at 25,000 contacts (10%). Numbers come from anonymised aggregate data across <a class="cite" data-cite-id="1" href="#hero-r-1">1</a> Shopify Plus merchants surveyed in Q1 2026, plus on-the-record interviews with three platform leads.
+            </p>
+            <h3 class="hero-h3">1. Klaviyo — the default, and still the safest pick</h3>
+            <p class="hero-p">
+              Klaviyo holds an estimated <a class="cite" data-cite-id="2" href="#hero-r-2">2</a> market share among Shopify Plus merchants in 2026. The reason isn't features in the abstract — every platform has flows now — it's that Klaviyo's predictive analytics layer fires on Shopify event data without a middleware step.
+              <span>
+                <em class="hero-quote-em">"We're spending less time wiring and more time writing."</em>
+                <span class="hero-quote-attr"> — Maren Olsen, retention lead, Highline Goods</span>
+                <a class="cite" data-cite-id="3" href="#hero-r-3">3</a>
+              </span>
+            </p>
+          </div>
+
+          <aside class="hero-demo-receipts scroll">
+            <div class="hero-receipts-head">
+              <div class="receipts-title">
+                <span>Source receipts</span>
+                <span class="receipts-count mono">3</span>
+              </div>
+            </div>
+            <div class="hero-receipts-list">
+              <div class="receipt" data-receipt-id="1" id="hero-r-1">
+                <div class="receipt-head">
+                  <span class="receipt-num mono">1</span>
+                  <span class="chip" style="color: var(--accent-text)">
+                    <svg class="icon icon-xs"><use href="#i-bar"/></svg> Stat
+                  </span>
+                  <span class="receipt-verify" style="margin-left:auto">
+                    <svg class="icon icon-sm"><use href="#i-verify"/></svg>
+                  </span>
+                </div>
+                <div class="receipt-text">412 Shopify Plus merchants surveyed across the $5M–$50M GMV band, Q1 2026.</div>
+                <div class="receipt-foot">
+                  <span class="favicon" style="background:rgba(255,215,99,0.16);color:#FFD763">N</span>
+                  <span class="receipt-source">Northbeam Retention Benchmarks 2026</span>
+                  <span class="receipt-verify-link">verify <svg class="icon icon-xs"><use href="#i-external"/></svg></span>
+                </div>
+              </div>
+
+              <div class="receipt" data-receipt-id="2" id="hero-r-2">
+                <div class="receipt-head">
+                  <span class="receipt-num mono">2</span>
+                  <span class="chip" style="color: var(--accent-text)">
+                    <svg class="icon icon-xs"><use href="#i-bar"/></svg> Stat
+                  </span>
+                  <span class="receipt-verify" style="margin-left:auto">
+                    <svg class="icon icon-sm"><use href="#i-verify"/></svg>
+                  </span>
+                </div>
+                <div class="receipt-text">Klaviyo holds 41.3% of Shopify Plus email tooling market share in 2026.</div>
+                <div class="receipt-foot">
+                  <span class="favicon" style="background:rgba(140,88,255,0.18);color:#B79CFF">K</span>
+                  <span class="receipt-source">Klaviyo Q1 2026 investor update, p. 14</span>
+                  <span class="receipt-verify-link">verify <svg class="icon icon-xs"><use href="#i-external"/></svg></span>
+                </div>
+              </div>
+
+              <div class="receipt" data-receipt-id="3" id="hero-r-3">
+                <div class="receipt-head">
+                  <span class="receipt-num mono">3</span>
+                  <span class="chip" style="color: var(--info)">
+                    <svg class="icon icon-xs"><use href="#i-quote"/></svg> Quote
+                  </span>
+                  <span class="receipt-verify" style="margin-left:auto">
+                    <svg class="icon icon-sm"><use href="#i-verify"/></svg>
+                  </span>
+                </div>
+                <div class="receipt-text">Quoted from a March 2026 interview about retention tooling at Highline Goods.</div>
+                <div class="receipt-foot">
+                  <span class="favicon" style="background:rgba(91,216,152,0.16);color:#5BD898">H</span>
+                  <span class="receipt-source">Bylined interview log · highlinegoods.com</span>
+                  <span class="receipt-verify-link">verify <svg class="icon icon-xs"><use href="#i-external"/></svg></span>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <svg class="hero-line-svg" style="position:absolute; inset:0; pointer-events:none; z-index:5; width:100%; height:100%" aria-hidden="true"></svg>
+        </div>
+      </div>
+
+      <div class="hero-caption">
+        <span class="mono">↑</span> Hover any <span class="cite" style="position:relative;top:0">1</span> in the article. Bylined surfaces the source. Click to pin.
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Wedge ───────────────────────────────────────────────── -->
+  <section class="mkt-section mkt-wedge">
+    <div class="mkt-container">
+      <div class="mkt-wedge-grid">
+        <div>
+          <div class="mkt-eyebrow eyebrow">The wedge</div>
+          <h2 class="mkt-h2 serif">Every claim has a receipt.</h2>
+          <p class="mkt-lede">
+            Other tools generate articles you have to trust blindly. Bylined shows its work. Every statistic, expert quote, citation, and schema field links to its origin — visible side-by-side with the draft, before you publish.
+          </p>
+          <ul class="wedge-list">
+            <li><span class="mono">01</span><span><b>Verifiable.</b> Click any number in the article. Bylined jumps to the source and shows the exact passage.</span></li>
+            <li><span class="mono">02</span><span><b>Auditable.</b> Sources stick around. Re-check them before you publish — or six months later when a link goes dead.</span></li>
+            <li><span class="mono">03</span><span><b>Built for AI search.</b> Articles with quotes, stats, and citations are exactly what ChatGPT and Perplexity cite back to readers.</span></li>
+          </ul>
+        </div>
+        <div class="wedge-figure">
+          <div class="wedge-figure-label">
+            <span>Source receipts</span>
+            <span class="mono">3 / 3 verified</span>
+          </div>
+
+          <div class="receipt">
+            <div class="receipt-head">
+              <span class="receipt-num mono">1</span>
+              <span class="chip" style="color: var(--accent-text)">
+                <svg class="icon icon-xs"><use href="#i-bar"/></svg> Stat
+              </span>
+              <span class="receipt-verify" style="margin-left:auto">
+                <svg class="icon icon-sm"><use href="#i-verify"/></svg>
+              </span>
+            </div>
+            <div class="receipt-text">Google AI Overviews appear on 13.7% of US informational queries in Q1 2026, up from 4.2% in Q3 2025.</div>
+            <div class="receipt-foot">
+              <span class="favicon" style="background:rgba(255,159,88,0.18);color:#FFB87A">S</span>
+              <span class="receipt-source">SparkToro Search Behaviour Report</span>
+              <span class="receipt-verify-link">verify <svg class="icon icon-xs"><use href="#i-external"/></svg></span>
+            </div>
+          </div>
+
+          <div class="receipt">
+            <div class="receipt-head">
+              <span class="receipt-num mono">2</span>
+              <span class="chip" style="color: var(--info)">
+                <svg class="icon icon-xs"><use href="#i-quote"/></svg> Quote
+              </span>
+              <span class="receipt-verify" style="margin-left:auto">
+                <svg class="icon icon-sm"><use href="#i-verify"/></svg>
+              </span>
+            </div>
+            <div class="receipt-text">Quoted from an April 2026 podcast on agency content ops. Confirmed on the record at 14:08.</div>
+            <div class="receipt-foot">
+              <span class="favicon" style="background:rgba(109,168,255,0.18);color:#6DA8FF">O</span>
+              <span class="receipt-source">The Operator Pod · ep 42 · 14:08</span>
+              <span class="receipt-verify-link">verify <svg class="icon icon-xs"><use href="#i-external"/></svg></span>
+            </div>
+          </div>
+
+          <div class="receipt">
+            <div class="receipt-head">
+              <span class="receipt-num mono">3</span>
+              <span class="chip" style="color: var(--success)">
+                <svg class="icon icon-xs"><use href="#i-link"/></svg> Citation
+              </span>
+              <span class="receipt-verify" style="margin-left:auto">
+                <svg class="icon icon-sm"><use href="#i-verify"/></svg>
+              </span>
+            </div>
+            <div class="receipt-text">Article structure follows AEO recommendations from Princeton's 2024 paper on LLM citation behaviour.</div>
+            <div class="receipt-foot">
+              <span class="favicon" style="background:rgba(255,99,99,0.16);color:#FF8C8C">P</span>
+              <span class="receipt-source">Princeton AEO Research · June 2024</span>
+              <span class="receipt-verify-link">verify <svg class="icon icon-xs"><use href="#i-external"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── How it works ────────────────────────────────────────── -->
+  <section class="mkt-section">
+    <div class="mkt-container">
+      <div class="mkt-eyebrow eyebrow">How it works</div>
+      <h2 class="mkt-h2 serif">Three things, then it runs.</h2>
+      <div class="mkt-steps">
+        <div class="mkt-step">
+          <div class="mkt-step-n mono">01</div>
+          <div class="mkt-step-h">Connect your site</div>
+          <div class="mkt-step-p">WordPress, Shopify, Webflow, Ghost, Notion, or a webhook. One click, you're done.</div>
+        </div>
+        <div class="mkt-step">
+          <div class="mkt-step-n mono">02</div>
+          <div class="mkt-step-h">Give Bylined a topic</div>
+          <div class="mkt-step-p">Type a topic or pick one Bylined found for you. Bylined reads the top results on Google and writes in your voice.</div>
+        </div>
+        <div class="mkt-step">
+          <div class="mkt-step-n mono">03</div>
+          <div class="mkt-step-h">Approve or autopilot</div>
+          <div class="mkt-step-p">Every fact comes with a source. Approve, edit, or set it on a schedule and let Bylined post for you.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Quotes ──────────────────────────────────────────────── -->
+  <section class="mkt-section mkt-section-tight">
+    <div class="mkt-container">
+      <div class="mkt-eyebrow eyebrow">In production at</div>
+      <h2 class="mkt-h2 serif">Operators using Bylined today.</h2>
+      <div class="quotes-grid">
+        <figure class="quote-card">
+          <blockquote class="serif">"We replaced two contractors and a Surfer subscription. The receipts panel is the only AI feature I trust."</blockquote>
+          <figcaption>
+            <div class="quote-name">Maren Olsen</div>
+            <div class="quote-role">Retention lead, Highline Goods</div>
+          </figcaption>
+        </figure>
+        <figure class="quote-card">
+          <blockquote class="serif">"Flat pricing means I can predict my Q4. Bylined ships 30 articles for what eesel costs at 12."</blockquote>
+          <figcaption>
+            <div class="quote-name">Devon Reyes</div>
+            <div class="quote-role">Ops, Saltwell DTC</div>
+          </figcaption>
+        </figure>
+        <figure class="quote-card">
+          <blockquote class="serif">"Our agency runs 14 client sites on Bylined. White-label out of the box."</blockquote>
+          <figcaption>
+            <div class="quote-name">Lina Park</div>
+            <div class="quote-role">Founder, Northbeam Studio</div>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Pricing rail ────────────────────────────────────────── -->
+  <section class="mkt-section">
+    <div class="mkt-container">
+      <div class="mkt-eyebrow eyebrow">Pricing</div>
+      <h2 class="mkt-h2 serif">Flat rate. No credit roulette.</h2>
+      <p class="mkt-h2-sub">Pick a tier by article volume, not features. Receipts and AEO media are on every plan.</p>
+
+      <div class="pr-grid">
+        <div class="pr-card">
+          <div class="pr-name">Solo</div>
+          <div class="pr-price"><span class="mono">$39</span><span class="pr-per">/mo</span></div>
+          <div class="pr-d">10 articles / month</div>
+          <div class="pr-a">Best for first sites under $1M GMV</div>
+          <a class="btn" style="margin-top:14px">Pick this <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        </div>
+        <div class="pr-card is-featured">
+          <div class="pr-flag">Most picked</div>
+          <div class="pr-name">Studio</div>
+          <div class="pr-price"><span class="mono">$99</span><span class="pr-per">/mo</span></div>
+          <div class="pr-d">30 articles / month</div>
+          <div class="pr-a">Most-picked. 1–3 sites, real volume.</div>
+          <a class="btn btn-primary" style="margin-top:14px">Start with Studio <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        </div>
+        <div class="pr-card">
+          <div class="pr-name">Agency</div>
+          <div class="pr-price"><span class="mono">$299</span><span class="pr-per">/mo</span></div>
+          <div class="pr-d">100 articles / month</div>
+          <div class="pr-a">White-label, bulk publish, client reports</div>
+          <a class="btn" style="margin-top:14px">Pick this <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        </div>
+        <div class="pr-card">
+          <div class="pr-name">Scale</div>
+          <div class="pr-price"><span class="mono">$599</span><span class="pr-per">/mo</span></div>
+          <div class="pr-d">300 articles / month</div>
+          <div class="pr-a">Custom voice models, SLA, priority support</div>
+          <a class="btn" style="margin-top:14px">Pick this <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        </div>
+      </div>
+      <div class="pr-foot">
+        <svg class="icon icon-sm"><use href="#i-check"/></svg> 14-day free trial, no card.
+        <span class="dot-sep"></span>
+        <svg class="icon icon-sm"><use href="#i-check"/></svg> Switch tiers any time.
+        <span class="dot-sep"></span>
+        <svg class="icon icon-sm"><use href="#i-check"/></svg> Receipts on every article, every plan.
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Final CTA ───────────────────────────────────────────── -->
+  <section class="mkt-final-cta">
+    <div class="mkt-container mkt-container-narrow" style="text-align:center">
+      <h2 class="mkt-h2 serif" style="font-size:56px; margin-left:auto; margin-right:auto">
+        Ship the article. <span class="hero-h1-em">Keep the receipts.</span>
+      </h2>
+      <p class="mkt-h2-sub" style="margin: 0 auto 28px">14 days free. First article in six minutes. No card, no credits, no slop.</p>
+      <a class="btn btn-primary btn-lg">Start with Bylined <svg class="icon"><use href="#i-arrow-right"/></svg></a>
+    </div>
+  </section>
+
+  <!-- ─── Footer ──────────────────────────────────────────────── -->
+  <footer class="mkt-footer">
+    <div class="mkt-container mkt-footer-inner">
+      <div class="footer-l">
+        <span class="brand-mark"><svg class="icon icon-sm"><use href="#i-logo"/></svg></span>
+        <span class="brand-wm">bylined</span>
+        <span class="footer-tag">Hands-off SEO that shows its work.</span>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <div class="footer-h">Product</div>
+          <a href="receipts.html">Receipts</a>
+          <a href="pricing.html">Pricing</a>
+        </div>
+        <div>
+          <div class="footer-h">Get in touch</div>
+          <a href="mailto:founders@bylined.so">founders@bylined.so</a>
+        </div>
+      </div>
+      <div class="footer-fine">© 2026 Bylined Labs · Built for operators.</div>
+    </div>
+  </footer>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

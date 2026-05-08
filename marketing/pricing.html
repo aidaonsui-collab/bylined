@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Bylined · Pricing — flat rate, no credits</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Pick by volume, not by feature. Receipts, AEO media, brand voice, and CMS publishing on every Bylined tier." />
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 4 L8 12 L14 20" />
+      <circle cx="14" cy="4" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="14" cy="20" r="1.6" fill="currentColor" stroke="none" />
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 6 9 17l-5-5"/>
+    </symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12h14M13 5l7 7-7 7"/>
+    </symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m6 9 6 6 6-6"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- Dev review toolbar — remove before launch -->
+<div class="dev-toggle" aria-label="Designer review controls">
+  <span class="dev-toggle-label">VIEW</span>
+  <div class="dev-toggle-group">
+    <button data-theme="dark" class="is-on" type="button">dark</button>
+    <button data-theme="light" type="button">light</button>
+  </div>
+  <button class="dev-toggle-swatch is-on" data-accent="chartreuse" type="button" title="Chartreuse" style="background:#D4FF3F"></button>
+  <button class="dev-toggle-swatch" data-accent="teal" type="button" title="Electric teal" style="background:#00E5C7"></button>
+</div>
+
+<div class="mkt-root">
+
+  <nav class="mkt-nav">
+    <div class="mkt-nav-inner">
+      <a class="mkt-brand" href="index.html">
+        <span class="brand-mark"><svg class="icon icon-sm"><use href="#i-logo"/></svg></span>
+        <span class="brand-wm">bylined</span>
+      </a>
+      <div class="mkt-nav-links">
+        <a href="receipts.html">Receipts</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="mkt-nav-cta">
+        <a class="btn btn-primary btn-sm">Start free <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="pp-hero">
+    <div class="mkt-container mkt-container-narrow">
+      <div class="pp-callout">
+        <svg class="icon icon-sm" style="color: var(--accent-text)"><use href="#i-check"/></svg>
+        <span>Flat pricing. <b>No credits, no overages without warning.</b></span>
+      </div>
+      <h1 class="mkt-h2 serif" style="font-size:64px; margin-top:8px;">
+        Pick by volume, not by feature.
+      </h1>
+      <p class="mkt-h2-sub">
+        Receipts, AEO media, brand voice, and CMS publishing are on every tier. The only thing that changes is how many articles you ship.
+      </p>
+
+      <div class="pp-toggle" role="tablist">
+        <button data-period="monthly" class="is-on" type="button">Monthly</button>
+        <button data-period="yearly" type="button">
+          Yearly <span class="pp-discount">−20%</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="mkt-container">
+      <div class="pr-grid" style="margin-top:8px">
+        <div class="pr-card">
+          <div class="pr-name">Solo</div>
+          <div class="pr-price">
+            <span class="mono" data-monthly="39">$39</span>
+            <span class="pr-per" data-per>/month</span>
+          </div>
+          <div class="pr-d">10 articles / mo</div>
+          <div class="pr-a">For first sites</div>
+          <a class="btn" style="margin-top:18px">Start with Solo <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+          <div style="margin-top:12px; font-size:11.5px; color:var(--fg-subtle); font-family:var(--font-mono)">
+            overage: $5 / article
+          </div>
+        </div>
+        <div class="pr-card is-featured">
+          <div class="pr-flag">Most picked</div>
+          <div class="pr-name">Studio</div>
+          <div class="pr-price">
+            <span class="mono" data-monthly="99">$99</span>
+            <span class="pr-per" data-per>/month</span>
+          </div>
+          <div class="pr-d">30 articles / mo</div>
+          <div class="pr-a">Most operators pick this</div>
+          <a class="btn btn-primary" style="margin-top:18px">Start with Studio <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+          <div style="margin-top:12px; font-size:11.5px; color:var(--fg-subtle); font-family:var(--font-mono)">
+            overage: $4 / article
+          </div>
+        </div>
+        <div class="pr-card">
+          <div class="pr-name">Agency</div>
+          <div class="pr-price">
+            <span class="mono" data-monthly="299">$299</span>
+            <span class="pr-per" data-per>/month</span>
+          </div>
+          <div class="pr-d">100 articles / mo</div>
+          <div class="pr-a">White-label for clients</div>
+          <a class="btn" style="margin-top:18px">Start with Agency <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+          <div style="margin-top:12px; font-size:11.5px; color:var(--fg-subtle); font-family:var(--font-mono)">
+            overage: $3 / article
+          </div>
+        </div>
+        <div class="pr-card">
+          <div class="pr-name">Scale</div>
+          <div class="pr-price">
+            <span class="mono" data-monthly="599">$599</span>
+            <span class="pr-per" data-per>/month</span>
+          </div>
+          <div class="pr-d">300 articles / mo</div>
+          <div class="pr-a">Volume + SLA</div>
+          <a class="btn" style="margin-top:18px">Talk to us <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+          <div style="margin-top:12px; font-size:11.5px; color:var(--fg-subtle); font-family:var(--font-mono)">
+            overage: $2 / article
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Full comparison table ────────────────────────────────── -->
+  <section class="mkt-section mkt-section-tight">
+    <div class="mkt-container">
+      <div class="mkt-eyebrow eyebrow">Full comparison</div>
+      <h2 class="mkt-h2 serif" style="font-size:40px">What's in each tier.</h2>
+
+      <div class="pp-compare">
+        <div class="pp-compare-head">
+          <div class="pp-h-cell">
+            <div style="font-size:12px; color:var(--fg-muted); text-transform:uppercase; letter-spacing:0.06em; font-weight:600">Feature</div>
+          </div>
+          <div class="pp-h-cell">
+            <div class="pp-h-tier">Solo</div>
+            <div class="pp-h-price"><span data-monthly="39">$39</span><span style="color:var(--fg-muted); font-size:11px; font-weight:400">/mo</span></div>
+            <div class="pp-h-vol">10 articles / mo</div>
+          </div>
+          <div class="pp-h-cell is-feat">
+            <div class="pp-h-tier">Studio</div>
+            <div class="pp-h-price"><span data-monthly="99">$99</span><span style="color:var(--fg-muted); font-size:11px; font-weight:400">/mo</span></div>
+            <div class="pp-h-vol">30 articles / mo</div>
+          </div>
+          <div class="pp-h-cell">
+            <div class="pp-h-tier">Agency</div>
+            <div class="pp-h-price"><span data-monthly="299">$299</span><span style="color:var(--fg-muted); font-size:11px; font-weight:400">/mo</span></div>
+            <div class="pp-h-vol">100 articles / mo</div>
+          </div>
+          <div class="pp-h-cell">
+            <div class="pp-h-tier">Scale</div>
+            <div class="pp-h-price"><span data-monthly="599">$599</span><span style="color:var(--fg-muted); font-size:11px; font-weight:400">/mo</span></div>
+            <div class="pp-h-vol">300 articles / mo</div>
+          </div>
+        </div>
+
+        <!-- Generation -->
+        <div class="pp-section-head">Generation</div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Articles per month</div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">10</span></div>
+          <div class="pp-s-cell is-feat"><span class="mono" style="font-size:12px; color: var(--accent-text); font-weight:600">30</span></div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">100</span></div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">300</span></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Live SERP grounding</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Source receipts panel</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">AEO media (quotes/stats/cites)</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Schema generation</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Brand-voice fingerprint</div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">1 site</span></div>
+          <div class="pp-s-cell is-feat"><span class="mono" style="font-size:12px; color: var(--accent-text); font-weight:600">3 sites</span></div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">20 sites</span></div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">Unlimited</span></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Custom voice training</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+
+        <!-- Publishing -->
+        <div class="pp-section-head">Publishing</div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">CMS connectors (WP, Shopify, Webflow, Ghost, Notion, Webhook)</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Auto-publish on schedule</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Bulk publish across sites</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Approval workflow</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Webhook + Zapier</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+
+        <!-- Agency -->
+        <div class="pp-section-head">Agency</div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">White-label dashboard</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Client logo + custom subdomain</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Per-client brand color</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Bulk client reports</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Reseller billing helper</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+
+        <!-- Support -->
+        <div class="pp-section-head">Support</div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Email support</div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Slack Connect channel</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Dedicated success manager</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">SLA</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">99.5%</span></div>
+          <div class="pp-s-cell"><span class="mono" style="font-size:12px">99.9%</span></div>
+        </div>
+        <div class="pp-compare-section">
+          <div class="pp-s-cell">Onboarding call</div>
+          <div class="pp-s-cell"><span style="color:var(--fg-faint)">—</span></div>
+          <div class="pp-s-cell is-feat" style="color: var(--accent-text)"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+          <div class="pp-s-cell"><svg class="icon"><use href="#i-check"/></svg></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Why flat? ──────────────────────────────────────────── -->
+  <section class="mkt-section mkt-section-tight" style="background: var(--surface)">
+    <div class="mkt-container mkt-container-narrow">
+      <div class="mkt-eyebrow eyebrow" style="text-align:center">Why flat?</div>
+      <h2 class="mkt-h2 serif" style="text-align:center; margin: 0 auto 24px; font-size:40px">
+        Credits are a tax on planning.
+      </h2>
+      <p class="mkt-h2-sub" style="text-align:center; margin: 0 auto 36px">
+        You shouldn't have to do mental math at 2am to know whether tomorrow's article will publish. With Bylined, your December bill is knowable in May.
+      </p>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-radius: 12px; overflow:hidden; border: 1px solid var(--border)">
+        <div style="padding: 24px; background: var(--surface)">
+          <div class="eyebrow" style="margin-bottom: 8px; color: var(--danger)">Credit pricing</div>
+          <div style="font-size: 14px; line-height: 1.55; color: var(--fg-muted)">
+            "1,500 credits" → an article costs "between 30 and 80 credits depending on length, model, and SERP depth." Run out mid-month, choose between paying overage at 2× the per-article rate or pausing the publishing schedule.
+          </div>
+        </div>
+        <div style="padding: 24px; background: var(--surface)">
+          <div class="eyebrow" style="margin-bottom: 8px; color: var(--accent-text)">Bylined pricing</div>
+          <div style="font-size: 14px; line-height: 1.55; color: var(--fg-muted)">
+            "Studio is 30 articles a month for $99." If you publish 31, the 31st costs $4. The number on the invoice is the number you expected, plus or minus a few dollars in overage.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Pricing FAQ ─────────────────────────────────────────── -->
+  <section class="mkt-section mkt-section-tight">
+    <div class="mkt-container mkt-container-narrow">
+      <div class="mkt-eyebrow eyebrow">Pricing FAQ</div>
+      <h2 class="mkt-h2 serif" style="font-size:36px">Common questions.</h2>
+      <div class="faq-list">
+        <details class="faq-row">
+          <summary class="faq-q">
+            <span>What if I publish more articles than my plan?</span>
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+          </summary>
+          <div class="faq-row-a">Overage rate is published per tier (Solo $5, Studio $4, Agency $3, Scale $2 per extra article). You set a hard cap in Billing if you want to pause instead.</div>
+        </details>
+        <details class="faq-row">
+          <summary class="faq-q">
+            <span>Can I switch tiers mid-month?</span>
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+          </summary>
+          <div class="faq-row-a">Yes. We pro-rate up. Downgrades take effect at the next billing cycle so you keep what you paid for.</div>
+        </details>
+        <details class="faq-row">
+          <summary class="faq-q">
+            <span>Do you offer a non-profit / academic discount?</span>
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+          </summary>
+          <div class="faq-row-a">50% off any tier with verifiable status. Email founders@bylined.so.</div>
+        </details>
+        <details class="faq-row">
+          <summary class="faq-q">
+            <span>Is there an annual contract for Scale?</span>
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+          </summary>
+          <div class="faq-row-a">Optional. We default to month-to-month even on Scale; annual gets you 20% off and a guarantee on the volume cap.</div>
+        </details>
+        <details class="faq-row">
+          <summary class="faq-q">
+            <span>What about taxes?</span>
+            <svg class="icon icon-sm"><use href="#i-chevron-down"/></svg>
+          </summary>
+          <div class="faq-row-a">Sales tax / VAT is calculated at checkout based on your billing address. EU customers can supply a VAT ID.</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <footer class="mkt-footer">
+    <div class="mkt-container mkt-footer-inner">
+      <div class="footer-l">
+        <span class="brand-mark"><svg class="icon icon-sm"><use href="#i-logo"/></svg></span>
+        <span class="brand-wm">bylined</span>
+        <span class="footer-tag">Hands-off SEO that shows its work.</span>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <div class="footer-h">Product</div>
+          <a href="receipts.html">Receipts</a>
+          <a href="pricing.html">Pricing</a>
+        </div>
+        <div>
+          <div class="footer-h">Get in touch</div>
+          <a href="mailto:founders@bylined.so">founders@bylined.so</a>
+        </div>
+      </div>
+      <div class="footer-fine">© 2026 Bylined Labs · Built for operators.</div>
+    </div>
+  </footer>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Bylined · Receipts — every claim, sourced and verifiable</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="How Bylined attaches a verifiable source to every stat, quote, and citation. The four truths of a valid receipt and the verification gate that catches phantom citations." />
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 4 L8 12 L14 20" />
+      <circle cx="14" cy="4" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="14" cy="20" r="1.6" fill="currentColor" stroke="none" />
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  </defs>
+</svg>
+
+<!-- Dev review toolbar — remove before launch -->
+<div class="dev-toggle" aria-label="Designer review controls">
+  <span class="dev-toggle-label">VIEW</span>
+  <div class="dev-toggle-group">
+    <button data-theme="dark" class="is-on" type="button">dark</button>
+    <button data-theme="light" type="button">light</button>
+  </div>
+  <button class="dev-toggle-swatch is-on" data-accent="chartreuse" type="button" title="Chartreuse" style="background:#D4FF3F"></button>
+  <button class="dev-toggle-swatch" data-accent="teal" type="button" title="Electric teal" style="background:#00E5C7"></button>
+</div>
+
+<div class="mkt-root">
+
+  <nav class="mkt-nav">
+    <div class="mkt-nav-inner">
+      <a class="mkt-brand" href="index.html">
+        <span class="brand-mark"><svg class="icon icon-sm"><use href="#i-logo"/></svg></span>
+        <span class="brand-wm">bylined</span>
+      </a>
+      <div class="mkt-nav-links">
+        <a href="receipts.html">Receipts</a>
+        <a href="pricing.html">Pricing</a>
+      </div>
+      <div class="mkt-nav-cta">
+        <a class="btn btn-primary btn-sm">Start free <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ─── Hero ────────────────────────────────────────────────── -->
+  <header class="rc-hero">
+    <div class="mkt-container mkt-container-narrow">
+      <div class="mkt-eyebrow eyebrow">Receipts</div>
+      <h1 class="serif">Every claim, <em>sourced</em>. Every source, <em>verifiable</em>.</h1>
+      <p class="mkt-h2-sub">
+        Most AI writers will hand you an article full of confident statistics and zero way to check them. Bylined doesn't ship a claim until the source has been fetched, the passage has been matched, and the number has been verified. Here's exactly how.
+      </p>
+    </div>
+  </header>
+
+  <!-- ─── The 4 truths ────────────────────────────────────────── -->
+  <section class="mkt-section">
+    <div class="mkt-container">
+      <div class="mkt-eyebrow eyebrow">What counts</div>
+      <h2 class="mkt-h2 serif">A receipt is only valid if all four are true.</h2>
+      <p class="mkt-h2-sub">If any one fails, it's a marketing claim, not a receipt. Bylined enforces all four before an article ships.</p>
+
+      <div class="truths">
+        <div class="truth">
+          <div class="truth-num">01</div>
+          <h3 class="truth-h">The cited URL resolved</h3>
+          <p class="truth-p">When Bylined fetched the page, it returned a 200, not a 404, paywall error, or rate-limit. We log the response code and timestamp.</p>
+        </div>
+        <div class="truth">
+          <div class="truth-num">02</div>
+          <h3 class="truth-h">The exact passage was found</h3>
+          <p class="truth-p">The quoted sentence has to actually appear at the URL — string-matched, not "the topic was mentioned." This is what catches phantom citations.</p>
+        </div>
+        <div class="truth">
+          <div class="truth-num">03</div>
+          <h3 class="truth-h">The number matches the source</h3>
+          <p class="truth-p">If a stat is "41.3%", the source has to say 41.3%. We re-extract numbers and cross-check — models will sometimes say 41.2% and we'd never catch it without this step.</p>
+        </div>
+        <div class="truth">
+          <div class="truth-num">04</div>
+          <h3 class="truth-h">The receipt persists</h3>
+          <p class="truth-p">Every source URL is snapshotted to the Wayback Machine the moment Bylined uses it. When the URL drifts six months later, you can still verify what was originally there.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Pipeline ────────────────────────────────────────────── -->
+  <section class="mkt-section mkt-section-tight" style="background: var(--surface);">
+    <div class="mkt-container">
+      <div class="mkt-eyebrow eyebrow">The pipeline</div>
+      <h2 class="mkt-h2 serif">Six stages. One ships, one rejects.</h2>
+      <p class="mkt-h2-sub">An article either passes the verification gate at stage 4 or it doesn't get published. There's no "best effort" mode.</p>
+
+      <div class="pipeline">
+        <div class="stage">
+          <div class="stage-num">01</div>
+          <div>
+            <div class="stage-h">Pre-fetch the sources</div>
+            <p class="stage-p">Before the writer model sees a single token, Bylined fetches the top Google results, searches Reddit for direct quotes, pulls relevant YouTube videos, and queries stat databases for your topic.</p>
+            <div class="stage-tech">SERP via Serper · Reddit API · YouTube Data API · Optional: Statista, NewsAPI</div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-num">02</div>
+          <div>
+            <div class="stage-h">Extract a facts library</div>
+            <p class="stage-p">Each fetched page is parsed for stats, named quotes, and dates. Every entry is stored with its origin URL, the exact surrounding sentence, and the timestamp it was retrieved.</p>
+            <div class="stage-tech">Each fact: { url, exact_passage, retrieved_at, content_hash }</div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-num">03</div>
+          <div>
+            <div class="stage-h">Constrained generation</div>
+            <p class="stage-p">The writer model can only cite from the facts library. Every numeric claim must attach a source ID and the exact passage it's drawing from. If no source supports a sentence, the model writes it without a number — or skips the claim entirely.</p>
+            <div class="stage-tech">System prompt: "You may only cite from the library. Do not invent statistics."</div>
+          </div>
+        </div>
+
+        <div class="stage is-key">
+          <div class="stage-num">04</div>
+          <div>
+            <div class="stage-h">Verification gate <span class="chip chip-faint">the part that matters</span></div>
+            <p class="stage-p">Every cited claim is re-checked against its source: URL fetched fresh, passage string-matched, number compared. If any check fails, that section gets regenerated — or the claim is stripped. This is the step that distinguishes "with receipts" from marketing-speak.</p>
+            <div class="stage-tech">Fail conditions → regenerate section, OR strip claim, OR mark as "uncited"</div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-num">05</div>
+          <div>
+            <div class="stage-h">Snapshot for permanence</div>
+            <p class="stage-p">Each verified source URL gets archived to the Wayback Machine at write time. When the original page changes or 404s — and it will — your receipt still resolves to the version that supported the claim.</p>
+            <div class="stage-tech">archive.org/wayback/available API · stored alongside the receipt</div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-num">06</div>
+          <div>
+            <div class="stage-h">Re-verify on a schedule</div>
+            <p class="stage-p">Every published article's receipts are re-checked weekly. If a source moves or the page changes, you get an email with the affected articles and one-click options to re-source or accept the snapshot.</p>
+            <div class="stage-tech">Cron weekly · email digest of drift, not noise</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Honest limits ───────────────────────────────────────── -->
+  <section class="mkt-section mkt-section-tight">
+    <div class="mkt-container">
+      <div class="mkt-eyebrow eyebrow">Honest limitations</div>
+      <h2 class="mkt-h2 serif">What we won't pretend to verify.</h2>
+      <p class="mkt-h2-sub">Some claims aren't checkable with current tooling. We mark them honestly instead of faking it.</p>
+
+      <div class="limits-grid">
+        <div class="limit">
+          <div class="limit-h"><svg class="icon icon-sm"><use href="#i-info"/></svg> Paywalled sources</div>
+          <p class="limit-p">If the source is behind a hard paywall (NYT, WSJ, academic journals), we can attribute but can't string-match the passage. These get tagged <span class="chip chip-warn" style="vertical-align: 1px;">unverified-paywall</span> in the receipts panel — visible to you, not buried.</p>
+        </div>
+        <div class="limit">
+          <div class="limit-h"><svg class="icon icon-sm"><use href="#i-info"/></svg> Stats inside charts and PDFs</div>
+          <p class="limit-p">Numbers buried in JS-rendered charts, infographics, or PDF tables aren't reliably parseable. We currently skip these as sources rather than risk citing what we can't verify.</p>
+        </div>
+        <div class="limit">
+          <div class="limit-h"><svg class="icon icon-sm"><use href="#i-info"/></svg> Common-knowledge claims</div>
+          <p class="limit-p">Some sentences don't need a source — "Email marketing platforms send email to your customers" doesn't deserve a citation. Those run as plain prose, not as fake-cited claims with a token receipt.</p>
+        </div>
+        <div class="limit">
+          <div class="limit-h"><svg class="icon icon-sm"><use href="#i-info"/></svg> Your private data</div>
+          <p class="limit-p">If you bring internal numbers (CTR, GMV, conversion rates), Bylined will use them and tag them <span class="chip" style="vertical-align: 1px;">internal</span>. The receipt links to whichever doc you uploaded, not a public URL.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── The visible promise ─────────────────────────────────── -->
+  <section class="mkt-section mkt-section-tight" style="background: var(--surface);">
+    <div class="mkt-container mkt-container-narrow" style="text-align: center;">
+      <div class="mkt-eyebrow eyebrow">The number we report</div>
+      <h2 class="mkt-h2 serif" style="margin: 0 auto 16px;">% of claims that pass the gate.</h2>
+      <p class="mkt-h2-sub" style="margin: 0 auto 32px;">
+        Internally we track the share of generated claims that pass verification on the first pass and on each re-verification. We publish the rolling number on our status page and refuse to ship the product if it dips below 95%. If you're going to charge for "with receipts," the receipts have to actually verify.
+      </p>
+      <div style="display: inline-flex; gap: 32px; align-items: center; padding: 24px 36px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-card);">
+        <div style="text-align: left;">
+          <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--accent-text); letter-spacing: -0.02em;">98.2<span style="font-size: 18px;">%</span></div>
+          <div style="color: var(--fg-muted); font-size: 12.5px;">first-pass verification (last 30d)</div>
+        </div>
+        <div style="height: 48px; width: 1px; background: var(--border);"></div>
+        <div style="text-align: left;">
+          <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--fg); letter-spacing: -0.02em;">96.4<span style="font-size: 18px;">%</span></div>
+          <div style="color: var(--fg-muted); font-size: 12.5px;">re-verify at 90 days</div>
+        </div>
+      </div>
+      <p style="margin-top: 16px; font-size: 12px; color: var(--fg-subtle);">
+        <!-- TODO: replace with live numbers from production once shipping. -->
+        Sample numbers shown · Live metrics published on launch.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── Final CTA ───────────────────────────────────────────── -->
+  <section class="mkt-final-cta">
+    <div class="mkt-container mkt-container-narrow" style="text-align:center">
+      <h2 class="mkt-h2 serif" style="font-size:56px; margin: 0 auto 16px;">
+        Ship articles you can <span class="hero-h1-em">stand behind.</span>
+      </h2>
+      <p class="mkt-h2-sub" style="margin: 0 auto 28px;">14 days free. Every article comes with receipts on every plan, including Solo.</p>
+      <a class="btn btn-primary btn-lg">Start with Bylined <svg class="icon"><use href="#i-arrow-right"/></svg></a>
+    </div>
+  </section>
+
+  <footer class="mkt-footer">
+    <div class="mkt-container mkt-footer-inner">
+      <div class="footer-l">
+        <span class="brand-mark"><svg class="icon icon-sm"><use href="#i-logo"/></svg></span>
+        <span class="brand-wm">bylined</span>
+        <span class="footer-tag">Hands-off SEO that shows its work.</span>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <div class="footer-h">Product</div>
+          <a href="receipts.html">Receipts</a>
+          <a href="pricing.html">Pricing</a>
+        </div>
+        <div>
+          <div class="footer-h">Get in touch</div>
+          <a href="mailto:founders@bylined.so">founders@bylined.so</a>
+        </div>
+      </div>
+      <div class="footer-fine">© 2026 Bylined Labs · Built for operators.</div>
+    </div>
+  </footer>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

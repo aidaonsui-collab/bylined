@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Environment + secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Caches
+.cache/
+.parcel-cache/
+.next/
+.turbo/
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Engine-specific
+engine/out/
+engine/fixtures/cache/
