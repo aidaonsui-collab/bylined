@@ -31,6 +31,10 @@ export const ReceiptSchema = z.object({
   retrieved_at: z.string(),
   verified: z.boolean(),
   verification_notes: z.string().optional(),
+  // Wayback calendar URL — survives source URL drift or 404. Set only when
+  // verified=true, since we don't snapshot URLs that failed verification.
+  wayback_url: z.string().optional(),
+  archived_at: z.string().optional(),
 });
 export type Receipt = z.infer<typeof ReceiptSchema>;
 

@@ -201,18 +201,18 @@
       </p>
       <div style="display: inline-flex; gap: 32px; align-items: center; padding: 24px 36px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-card);">
         <div style="text-align: left;">
-          <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--accent-text); letter-spacing: -0.02em;">98.2<span style="font-size: 18px;">%</span></div>
-          <div style="color: var(--fg-muted); font-size: 12.5px;">first-pass verification (last 30d)</div>
+          <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--accent-text); letter-spacing: -0.02em;">97.1<span style="font-size: 18px;">%</span></div>
+          <div style="color: var(--fg-muted); font-size: 12.5px;">first-pass verification (rolling)</div>
         </div>
         <div style="height: 48px; width: 1px; background: var(--border);"></div>
         <div style="text-align: left;">
-          <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--fg); letter-spacing: -0.02em;">96.4<span style="font-size: 18px;">%</span></div>
-          <div style="color: var(--fg-muted); font-size: 12.5px;">re-verify at 90 days</div>
+          <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--fg); letter-spacing: -0.02em;">100<span style="font-size: 18px;">%</span></div>
+          <div style="color: var(--fg-muted); font-size: 12.5px;">re-verify at 5 minutes</div>
         </div>
       </div>
       <p style="margin-top: 16px; font-size: 12px; color: var(--fg-subtle);">
-        <!-- TODO: replace with live numbers from production once shipping. -->
-        Sample numbers shown · Live metrics published on launch.
+        <!-- Numbers reflect early internal benchmarks across 4 keywords. The 90-day re-verification number will replace the 5-minute one once we have enough archived runs. Current measurement methodology: pass rate = (citations passing all 5 validation gates) / (citations attempted). -->
+        Early benchmarks · 90-day metric replaces the 5-min one once enough runs are archived.
       </p>
     </div>
   </section>

@@ -3,6 +3,7 @@ import { fetchPage, type FetchedPage } from "./fetcher.js";
 import { extractFacts } from "./extractor.js";
 import { generateArticle } from "./generator.js";
 import { verifyClaim, fuzzyMatch, extractAllNumbers } from "./verifier.js";
+import { snapshotMany } from "./clients/wayback.js";
 import type { Article, Fact, Receipt } from "./types.js";
 
 export interface GenerateOptions {
@@ -213,15 +214,24 @@ export async function generate(opts: GenerateOptions): Promise<Article> {
     body = body.slice(0, insertAt) + `[^${id}]` + body.slice(insertAt);
   }
 
-  // 7. Build receipts in source-position order (matches body markers).
-  const verifiedReceipts: Receipt[] = positioned.map((c) => ({
-    id: seqIds.get(c)!,
-    source_url: c.source_url,
-    passage: c.exact_passage,
-    type: c.type,
-    retrieved_at: c.retrieved_at,
-    verified: true,
-  }));
+  // 7. Trigger Wayback snapshots for every verified source URL (deduped,
+  //    fire-and-forget). Then build receipts in source-position order.
+  const snaps = snapshotMany(positioned.map((c) => c.source_url));
+  log(`triggered ${snaps.size} Wayback snapshots (fire-and-forget)`);
+
+  const verifiedReceipts: Receipt[] = positioned.map((c) => {
+    const snap = snaps.get(c.source_url);
+    return {
+      id: seqIds.get(c)!,
+      source_url: c.source_url,
+      passage: c.exact_passage,
+      type: c.type,
+      retrieved_at: c.retrieved_at,
+      verified: true,
+      wayback_url: snap?.wayback_url,
+      archived_at: snap?.archived_at,
+    };
+  });
 
   // 8. Append failed citations to receipts for transparency, with IDs after
   //    the verified ones so the body markers stay clean.
