@@ -4,11 +4,13 @@ import { extractFacts } from "./extractor.js";
 import { generateArticle } from "./generator.js";
 import { verifyClaim, fuzzyMatch, extractAllNumbers } from "./verifier.js";
 import { snapshotMany } from "./clients/wayback.js";
+import type { VoiceFingerprint } from "./clients/voice.js";
 import type { Article, Fact, Receipt } from "./types.js";
 
 export interface GenerateOptions {
   keyword: string;
   serpCount?: number;
+  voice?: VoiceFingerprint;
   log?: (msg: string) => void;
 }
 
@@ -58,9 +60,14 @@ export async function generate(opts: GenerateOptions): Promise<Article> {
     log(`capping to top ${facts.length} facts`);
   }
 
-  // 4. Generate article (body is plain prose; citations carry alignment)
+  // 4. Generate article (body is plain prose; citations carry alignment).
+  //    If a brand voice fingerprint was passed in, the generator prepends
+  //    style guidance to its system prompt.
+  if (opts.voice) {
+    log(`using brand voice fingerprint from ${opts.voice.source_url}`);
+  }
   log(`generating article...`);
-  const generated = await generateArticle(opts.keyword, facts);
+  const generated = await generateArticle(opts.keyword, facts, opts.voice);
   log(`generated draft with ${generated.citations.length} candidate citations`);
 
   // 5. Validate every citation through 5 gates. Only fully-passed citations

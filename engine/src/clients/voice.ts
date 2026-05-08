@@ -1,0 +1,150 @@
+// Brand voice fingerprint — analyse a site's existing pages and extract a
+// compact style profile that can be injected into the article generator's
+// system prompt. The fingerprint stays small (<2KB) so it doesn't bloat
+// generation calls; we cache it per-site so we only pay extraction cost once.
+
+import { z } from "zod";
+import * as cheerio from "cheerio";
+import { chatJSON } from "./minimax.js";
+
+export const VoiceFingerprintSchema = z.object({
+  source_url: z.string().url(),
+  generated_at: z.string(),
+  pages_analyzed: z.array(z.string().url()),
+  // The actual style content — what gets injected into the writer's prompt.
+  tone: z.string(),
+  voice_traits: z.array(z.string()),
+  signature_phrases: z.array(z.string()),
+  avg_sentence_length: z.number(),
+  technical_level: z.enum(["beginner", "intermediate", "expert"]),
+  taboo: z.array(z.string()),
+  example_paragraph: z.string(),
+});
+export type VoiceFingerprint = z.infer<typeof VoiceFingerprintSchema>;
+
+const USER_AGENT =
+  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://bylined.so/bot)";
+
+// Pull a handful of internal article-ish links from a site, biased toward
+// blog/article paths. We only need 5-10 representative pages — more
+// doesn't help fingerprint quality and burns tokens.
+async function discoverPages(homepage: string, max = 8): Promise<string[]> {
+  const res = await fetch(homepage, { headers: { "User-Agent": USER_AGENT } });
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const origin = new URL(homepage).origin;
+
+  const candidates = new Set<string>([homepage]);
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href");
+    if (!href) return;
+    let abs: URL;
+    try {
+      abs = new URL(href, homepage);
+    } catch {
+      return;
+    }
+    if (abs.origin !== origin) return;
+    // Skip nav junk, mailto, anchors, paginated archives, asset URLs.
+    if (/\.(jpg|png|gif|svg|pdf|zip|css|js)(\?|$)/i.test(abs.pathname)) return;
+    if (abs.hash) abs.hash = "";
+    candidates.add(abs.toString());
+  });
+
+  // Bias toward blog-shaped paths.
+  const ranked = [...candidates].sort((a, b) => {
+    const score = (u: string) =>
+      /\/(blog|posts|articles|writing|guides|resources)\//i.test(u) ? 1 : 0;
+    return score(b) - score(a);
+  });
+  return ranked.slice(0, max);
+}
+
+async function fetchClean(url: string): Promise<string> {
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+  if (!res.ok) return "";
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  $("script, style, noscript, iframe, svg, nav, footer, header, aside").remove();
+  // Prefer <article> or <main> when present — that's the editorial body.
+  const main = $("article").first().text() || $("main").first().text() || $("body").text();
+  return main.replace(/\s+/g, " ").trim().slice(0, 6000);
+}
+
+const SYSTEM_PROMPT = `You analyze a brand's published writing and extract a structured "voice fingerprint."
+
+Return JSON in this exact shape:
+{
+  "tone": "<one sentence describing the brand's tone, e.g. 'plainspoken, mildly irreverent, ends sections with a directional take'>",
+  "voice_traits": [
+    "<trait, e.g. 'uses contractions freely'>",
+    "<trait, e.g. 'opens sections with a question or a stat, never a hype line'>",
+    "<3–7 traits total>"
+  ],
+  "signature_phrases": [
+    "<phrases that recur across the brand's writing — 5–10 short ones>"
+  ],
+  "avg_sentence_length": <integer, words>,
+  "technical_level": "beginner" | "intermediate" | "expert",
+  "taboo": [
+    "<words/phrases this brand visibly avoids — 'unlock', 'leverage', 'best-in-class', etc., based on what's NOT in the samples>"
+  ],
+  "example_paragraph": "<2-3 sentence paragraph in their voice on the topic 'why we built this'>"
+}
+
+Be specific and observational. Don't recycle generic copywriting advice.`;
+
+export async function extractFingerprint(homepage: string): Promise<VoiceFingerprint> {
+  const pageUrls = await discoverPages(homepage);
+  if (pageUrls.length === 0) {
+    throw new Error(`No analysable pages found at ${homepage}`);
+  }
+
+  const samples = await Promise.all(
+    pageUrls.map(async (u) => {
+      const text = await fetchClean(u).catch(() => "");
+      return { url: u, text };
+    })
+  );
+  const usable = samples.filter((s) => s.text.length > 300);
+  if (usable.length === 0) {
+    throw new Error(`Pages at ${homepage} returned too little text to analyze.`);
+  }
+
+  const corpus = usable
+    .map((s, i) => `=== Page ${i + 1}: ${s.url} ===\n${s.text}`)
+    .join("\n\n");
+
+  const fingerprint = await chatJSON<Omit<VoiceFingerprint, "source_url" | "generated_at" | "pages_analyzed">>([
+    { role: "system", content: SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: `Analyse the brand voice across these ${usable.length} pages from ${
+        new URL(homepage).hostname
+      }:\n\n${corpus}\n\nReturn the JSON fingerprint.`,
+    },
+  ], { max_tokens: 2000 });
+
+  return {
+    source_url: homepage,
+    generated_at: new Date().toISOString(),
+    pages_analyzed: usable.map((s) => s.url),
+    ...fingerprint,
+  };
+}
+
+// Compose a system-prompt fragment that the article generator prepends.
+// Kept small (~10 lines) so it doesn't crowd the rest of the prompt.
+export function voicePromptFragment(fp: VoiceFingerprint): string {
+  return `BRAND VOICE — match this style while following all citation rules:
+
+- Tone: ${fp.tone}
+- Voice traits: ${fp.voice_traits.join("; ")}
+- Use these signature phrases naturally where they fit: ${fp.signature_phrases.join(", ")}
+- Avoid these words/phrases entirely: ${fp.taboo.join(", ")}
+- Target sentence length: ~${fp.avg_sentence_length} words
+- Technical level: ${fp.technical_level}
+
+Example paragraph in this voice (for reference, not for copying):
+${fp.example_paragraph}`;
+}

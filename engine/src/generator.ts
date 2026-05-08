@@ -1,4 +1,5 @@
 import { chatJSON } from "./clients/minimax.js";
+import { voicePromptFragment, type VoiceFingerprint } from "./clients/voice.js";
 import type { Fact } from "./types.js";
 
 export interface GenerationOutput {
@@ -76,7 +77,8 @@ Other rules:
 
 export async function generateArticle(
   keyword: string,
-  facts: Fact[]
+  facts: Fact[],
+  voice?: VoiceFingerprint
 ): Promise<GenerationOutput> {
   const factsLibrary = facts.map((f, i) => ({
     id: `f${i + 1}`,
@@ -85,6 +87,12 @@ export async function generateArticle(
     number: f.number,
     source_url: f.source_url,
   }));
+
+  // If a brand voice is provided, prepend its prompt fragment to the system
+  // prompt. Citation rules still take priority — voice adapts style only.
+  const systemContent = voice
+    ? `${voicePromptFragment(voice)}\n\n${SYSTEM_PROMPT}`
+    : SYSTEM_PROMPT;
 
   const userPrompt = `Topic: ${keyword}
 
@@ -95,7 +103,7 @@ Write an SEO article. Body is plain prose with no [^N] markers — citations are
 
   return chatJSON<GenerationOutput>(
     [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemContent },
       { role: "user", content: userPrompt },
     ],
     { max_tokens: 6000 }
