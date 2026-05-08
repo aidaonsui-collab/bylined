@@ -49,3 +49,7 @@ coverage/
 engine/out/
 engine/fixtures/cache/
 engine/voices/
+
+# Generated config (price IDs, webhook secret) — regenerated on demand
+scripts/.stripe-setup-output.json
+scripts/.stripe-env

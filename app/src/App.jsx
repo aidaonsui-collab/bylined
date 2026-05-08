@@ -10,6 +10,8 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import AuthCallback from './pages/AuthCallback.jsx';
 import CheckEmail from './pages/CheckEmail.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import Pricing from './pages/Pricing.jsx';
+import Billing from './pages/Billing.jsx';
 
 export default function App() {
   return (
@@ -26,6 +28,22 @@ export default function App() {
             <Route path="/auth/check-email" element={<CheckEmail />} />
 
             {/* App (protected) */}
+            <Route
+              path="/app/pricing"
+              element={
+                <ProtectedRoute>
+                  <Pricing />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/billing"
+              element={
+                <ProtectedRoute>
+                  <Billing />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/app/*"
               element={
