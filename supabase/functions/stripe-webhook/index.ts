@@ -63,14 +63,24 @@ async function verifyStripeSignature(
   return mismatch === 0;
 }
 
+interface StripeSubscriptionItem {
+  price: { id: string; metadata?: Record<string, string> };
+  // Newer Stripe API versions (2025+) moved period dates here from the
+  // subscription root. We accept both shapes.
+  current_period_start?: number;
+  current_period_end?: number;
+}
+
 interface StripeSubscription {
   id: string;
   customer: string;
   status: string;
   cancel_at_period_end: boolean;
-  current_period_start: number;
-  current_period_end: number;
-  items: { data: Array<{ price: { id: string; metadata?: Record<string, string> } }> };
+  // Older API versions (<= 2024-09-30): present on root.
+  // Newer API versions: present on items[0] instead.
+  current_period_start?: number;
+  current_period_end?: number;
+  items: { data: StripeSubscriptionItem[] };
   metadata: Record<string, string>;
 }
 
@@ -143,10 +153,25 @@ Deno.serve(async (req) => {
         return new Response("OK", { status: 200 });
       }
 
+      const item = sub.items.data[0];
       const planId =
-        sub.metadata?.plan_id ?? sub.items.data[0]?.price.metadata?.bylined_plan_id;
+        sub.metadata?.plan_id ?? item?.price.metadata?.bylined_plan_id;
       const { plan: resolvedPlan, articles_quota } = plan(planId);
-      const priceId = sub.items.data[0]?.price.id ?? "";
+      const priceId = item?.price.id ?? "";
+
+      // Period dates: newer Stripe API versions report these on items[0],
+      // older versions on the subscription root. Try both.
+      const periodStart = sub.current_period_start ?? item?.current_period_start;
+      const periodEnd = sub.current_period_end ?? item?.current_period_end;
+      if (!periodStart || !periodEnd) {
+        console.error(
+          "subscription missing period dates",
+          sub.id,
+          "root_start:", sub.current_period_start,
+          "item_start:", item?.current_period_start
+        );
+        throw new Error("subscription missing period dates");
+      }
 
       await admin.from("subscriptions").upsert(
         {
@@ -155,8 +180,8 @@ Deno.serve(async (req) => {
           stripe_price_id: priceId,
           plan: resolvedPlan,
           status: sub.status,
-          current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-          current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+          current_period_start: new Date(periodStart * 1000).toISOString(),
+          current_period_end: new Date(periodEnd * 1000).toISOString(),
           cancel_at_period_end: sub.cancel_at_period_end,
           articles_quota,
         },
