@@ -24,7 +24,9 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const MINIMAX_API_KEY = Deno.env.get("MINIMAX_API_KEY") ?? "";
 const MINIMAX_BASE_URL =
   Deno.env.get("MINIMAX_BASE_URL") ?? "https://api.minimaxi.chat/v1";
-const MINIMAX_MODEL = Deno.env.get("MINIMAX_MODEL") ?? "MiniMax-Text-01";
+// Default matches engine/.env. Override via the MINIMAX_MODEL secret if
+// you upgrade to a different model.
+const MINIMAX_MODEL = Deno.env.get("MINIMAX_MODEL") ?? "MiniMax-M2.7";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -361,11 +363,13 @@ Deno.serve(async (req) => {
       ...core,
     };
 
-    // 4. Insert via the user-scoped client — voices has owner_full_access
-    //    RLS so this lands under the calling user.
+    // 4. Insert via the user-scoped client. voices RLS is owner_full_access
+    //    with WITH CHECK (auth.uid() = user_id) — we set user_id explicitly
+    //    so the row passes the check.
     const { data: inserted, error: insertErr } = await userClient
       .from("voices")
       .insert({
+        user_id: user.id,
         source_url: homepage,
         fingerprint,
       })
