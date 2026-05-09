@@ -11,10 +11,12 @@
     "webflow": "tsx src/webflow-cli.ts",
     "voice": "tsx src/voice-cli.ts",
     "costs": "tsx src/costs-cli.ts",
+    "worker": "tsx src/worker.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.7",
     "zod": "^3.24.1"

@@ -111,6 +111,16 @@ export function priceFor(opts: PricingHints): number {
 let activeRunId: string | null = null;
 let activeFilePath: string | null = null;
 
+// Per-run context — set by the worker so every logCost() call inherits
+// user_id / job_id / article_id without each client having to thread
+// them. CLI runs leave this empty.
+interface RunContext {
+  user_id?: string;
+  job_id?: string;
+  article_id?: string;
+}
+let runContext: RunContext = {};
+
 export function startRun(slug?: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   activeRunId = `${stamp}-${slug ?? "run"}`;
@@ -122,6 +132,17 @@ export function startRun(slug?: string): string {
 export function getRunId(): string {
   if (!activeRunId) startRun();
   return activeRunId!;
+}
+
+// Set context for the current run. Worker calls this with the job's
+// user_id + job_id at the start of each job, and clearRunContext() when
+// the job finishes (so a later job doesn't inherit stale context).
+export function setRunContext(ctx: RunContext): void {
+  runContext = { ...ctx };
+}
+
+export function clearRunContext(): void {
+  runContext = {};
 }
 
 // Log a cost event. Writes to JSONL (always) and Supabase (if configured).
@@ -160,9 +181,10 @@ export function logCost(args: {
     cost_usd,
     duration_ms: args.duration_ms,
     metadata: args.metadata,
-    user_id: args.user_id,
-    article_id: args.article_id,
-    job_id: args.job_id,
+    // Explicit args win; otherwise inherit from runContext set by the worker.
+    user_id: args.user_id ?? runContext.user_id,
+    article_id: args.article_id ?? runContext.article_id,
+    job_id: args.job_id ?? runContext.job_id,
   };
 
   // Local JSONL write (synchronous so we never lose events on crash).

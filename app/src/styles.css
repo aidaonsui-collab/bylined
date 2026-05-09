@@ -152,6 +152,18 @@ a { color: inherit; text-decoration: none; }
     0 10px 22px -8px var(--accent-glow);
 }
 
+/* Base input look. Auth forms use this inside `.field` (which adds size
+   tweaks); the dashboard's keyword box uses it standalone. */
+.input { width: 100%; height: 34px; padding: 0 12px;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: 7px; color: var(--fg); font-size: 13.5px;
+  letter-spacing: -0.005em; outline: none;
+  transition: border-color 80ms, box-shadow 80ms, background 80ms; }
+.input::placeholder { color: var(--fg-subtle); }
+.input:hover { border-color: var(--border-strong); }
+.input:focus { border-color: var(--accent-ring); box-shadow: 0 0 0 3px var(--accent-faint); }
+.input:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .chip { display: inline-flex; align-items: center; gap: 5px; height: 22px;
   padding: 0 8px; border-radius: 999px; border: 1px solid var(--border);
   background: var(--surface-2); color: var(--fg-muted); font-size: 11.5px;
