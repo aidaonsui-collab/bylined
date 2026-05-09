@@ -58,11 +58,13 @@ export default function Dashboard() {
   const toast = useToast();
 
   const [keyword, setKeyword] = useState('');
+  const [voiceId, setVoiceId] = useState(''); // optional voice attached to the job
   const [submitting, setSubmitting] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [articles, setArticles] = useState([]);
   const [subscription, setSubscription] = useState(null);
   const [sites, setSites] = useState([]);
+  const [voices, setVoices] = useState([]);
   const [openArticleId, setOpenArticleId] = useState(null);
 
   const displayName =
@@ -73,7 +75,7 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) return;
-    const [jobsRes, articlesRes, subRes, sitesRes] = await Promise.all([
+    const [jobsRes, articlesRes, subRes, sitesRes, voicesRes] = await Promise.all([
       supabase
         .from('jobs')
         .select('id, keyword, status, error, created_at, completed_at, article_id')
@@ -96,11 +98,16 @@ export default function Dashboard() {
         .select('id, name, cms_type, is_active')
         .eq('is_active', true)
         .order('name'),
+      supabase
+        .from('voices')
+        .select('id, source_url, created_at')
+        .order('created_at', { ascending: false }),
     ]);
     setJobs(jobsRes.data ?? []);
     setArticles(articlesRes.data ?? []);
     setSubscription(subRes.data ?? null);
     setSites(sitesRes.data ?? []);
+    setVoices(voicesRes.data ?? []);
   }, [user]);
 
   useEffect(() => {
@@ -126,6 +133,7 @@ export default function Dashboard() {
     const { error } = await supabase.from('jobs').insert({
       user_id: user.id,
       keyword: keyword.trim(),
+      voice_id: voiceId || null,
     });
     setSubmitting(false);
     if (error) {
@@ -232,31 +240,69 @@ export default function Dashboard() {
             <form
               onSubmit={handleSubmit}
               className="app-callout"
-              style={{ marginTop: 24, gap: 12, alignItems: 'stretch' }}
+              style={{
+                marginTop: 24,
+                gap: 12,
+                alignItems: 'stretch',
+                flexDirection: 'column',
+              }}
             >
-              <input
-                type="text"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="best email marketing platforms for shopify stores 2026"
-                className="input"
-                style={{ flex: 1, minWidth: 0 }}
-                disabled={submitting || remaining === 0}
-                maxLength={200}
-              />
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={!canSubmit}
-                style={{ whiteSpace: 'nowrap' }}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="best email marketing platforms for shopify stores 2026"
+                  className="input"
+                  style={{ flex: 1, minWidth: 220 }}
+                  disabled={submitting || remaining === 0}
+                  maxLength={200}
+                />
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!canSubmit}
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {submitting
+                    ? 'Queueing…'
+                    : remaining === 0
+                    ? 'Quota used'
+                    : 'Generate'}{' '}
+                  {!submitting && remaining > 0 && <ArrowRight />}
+                </button>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 12,
+                  color: 'var(--fg-muted)',
+                }}
               >
-                {submitting
-                  ? 'Queueing…'
-                  : remaining === 0
-                  ? 'Quota used'
-                  : 'Generate'}{' '}
-                {!submitting && remaining > 0 && <ArrowRight />}
-              </button>
+                <span>Voice:</span>
+                <select
+                  className="input"
+                  value={voiceId}
+                  onChange={(e) => setVoiceId(e.target.value)}
+                  disabled={submitting || voices.length === 0}
+                  style={{ width: 'auto', minWidth: 200, height: 28, fontSize: 12.5 }}
+                >
+                  <option value="">No voice (generic style)</option>
+                  {voices.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {new URL(v.source_url).hostname}
+                    </option>
+                  ))}
+                </select>
+                {voices.length === 0 && (
+                  <span>
+                    <Link to="/app/voice">Extract a voice</Link> for branded
+                    output.
+                  </span>
+                )}
+              </div>
             </form>
           )}
 

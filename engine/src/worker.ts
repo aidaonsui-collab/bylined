@@ -95,13 +95,35 @@ async function runJob(job: Job): Promise<void> {
   log(`claimed: keyword="${job.keyword}" run=${runId}`);
 
   try {
-    // 1. Run the engine pipeline.
+    // 1. Load voice fingerprint if the job pinned one. We pass it into
+    //    generate() so the writer's prompt picks up the brand-style
+    //    fragment. Failure to load is logged but non-fatal — better to
+    //    generate a generic article than to fail the job.
+    let voice: import("./clients/voice.js").VoiceFingerprint | undefined;
+    if (job.voice_id) {
+      const { data: voiceRow, error: vErr } = await admin
+        .from("voices")
+        .select("fingerprint")
+        .eq("id", job.voice_id)
+        .single();
+      if (vErr) {
+        log(`voice load failed (${vErr.message}); continuing without voice`);
+      } else {
+        voice = voiceRow?.fingerprint as
+          | import("./clients/voice.js").VoiceFingerprint
+          | undefined;
+        log(`using voice fingerprint from ${voice?.source_url ?? "(unknown)"}`);
+      }
+    }
+
+    // 2. Run the engine pipeline.
     const article: Article = await generate({
       keyword: job.keyword,
+      voice,
       log,
     });
 
-    // 2. Insert the article. Status='draft' until publish wires up.
+    // 3. Insert the article. Status='draft' until publish wires up.
     const { data: inserted, error: insertErr } = await admin
       .from("articles")
       .insert({
@@ -120,7 +142,7 @@ async function runJob(job: Job): Promise<void> {
       .single();
     if (insertErr) throw new Error(`articles insert failed: ${insertErr.message}`);
 
-    // 3. Mark job complete.
+    // 4. Mark job complete.
     const { error: jobErr } = await admin
       .from("jobs")
       .update({
@@ -131,7 +153,7 @@ async function runJob(job: Job): Promise<void> {
       .eq("id", job.id);
     if (jobErr) throw new Error(`jobs update failed: ${jobErr.message}`);
 
-    // 3b. Backfill article_id onto every cost_event we logged for this
+    // 4b. Backfill article_id onto every cost_event we logged for this
     //     job. The article row didn't exist when those events fired, so
     //     they only carry job_id. cost_per_article rolls up by article_id.
     const { error: backfillErr } = await admin
@@ -148,7 +170,7 @@ async function runJob(job: Job): Promise<void> {
       );
     }
 
-    // 4. Increment quota usage (only on success).
+    // 5. Increment quota usage (only on success).
     const { data: newUsed, error: incErr } = await admin.rpc(
       "increment_articles_used",
       { p_user_id: job.user_id }

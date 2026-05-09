@@ -60,3 +60,15 @@ export async function publishArticle({ article_id, site_id, live }) {
   if (!result.ok) return result;
   return { ok: true, ...result.data };
 }
+
+// Voice — extract a brand-style fingerprint from a homepage. Backed by
+// supabase/functions/extract-voice-fingerprint, which crawls the site,
+// hands a sampled corpus to Minimax, and inserts a row in public.voices.
+// Wall-clock is ~30–60s; surface a spinner.
+export async function extractVoiceFingerprint({ source_url }) {
+  const result = await invokeEdgeFunction('extract-voice-fingerprint', {
+    source_url,
+  });
+  if (!result.ok) return result;
+  return { ok: true, ...result.data };
+}
