@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Pricing from './pages/Pricing.jsx';
 import Billing from './pages/Billing.jsx';
 import Sites from './pages/Sites.jsx';
+import Usage from './pages/Usage.jsx';
 
 export default function App() {
   return (
@@ -50,6 +51,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Sites />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/usage"
+              element={
+                <ProtectedRoute>
+                  <Usage />
                 </ProtectedRoute>
               }
             />

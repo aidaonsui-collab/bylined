@@ -98,6 +98,7 @@ export default function Sites() {
             <Link to="/app">Articles</Link>
             <Link to="/app/sites">Sites</Link>
             <Link to="/app/voice">Voice</Link>
+            <Link to="/app/usage">Usage</Link>
             <Link to="/app/billing">Billing</Link>
           </nav>
           <div className="app-nav-user">

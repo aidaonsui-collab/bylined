@@ -131,6 +131,23 @@ async function runJob(job: Job): Promise<void> {
       .eq("id", job.id);
     if (jobErr) throw new Error(`jobs update failed: ${jobErr.message}`);
 
+    // 3b. Backfill article_id onto every cost_event we logged for this
+    //     job. The article row didn't exist when those events fired, so
+    //     they only carry job_id. cost_per_article rolls up by article_id.
+    const { error: backfillErr } = await admin
+      .from("cost_events")
+      .update({ article_id: inserted.id })
+      .eq("job_id", job.id)
+      .is("article_id", null);
+    if (backfillErr) {
+      // Non-fatal — the events still exist with job_id set, so we can
+      // join through public.jobs in views if needed. Just log.
+      console.warn(
+        `[worker:${job.id.slice(0, 8)}] cost_events backfill failed:`,
+        backfillErr.message
+      );
+    }
+
     // 4. Increment quota usage (only on success).
     const { data: newUsed, error: incErr } = await admin.rpc(
       "increment_articles_used",
