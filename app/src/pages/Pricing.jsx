@@ -2,8 +2,8 @@
 // rail (cream paper aesthetic + Studio featured tier) but the buttons
 // here actually create Stripe Checkout sessions.
 
-import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { PLANS, startCheckout } from '../lib/billing.js';
@@ -26,7 +26,20 @@ export default function Pricing() {
   const { profile, signOut } = useAuth();
   const toast = useToast();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [busy, setBusy] = useState(null); // plan id currently submitting
+  const cardRefs = useRef({}); // plan.id → DOM node
+
+  // ?plan=<id> from a marketing CTA — highlight + scroll the tier
+  // into view so the user sees the right one immediately.
+  const highlight = searchParams.get('plan');
+  useEffect(() => {
+    if (!highlight) return;
+    const node = cardRefs.current[highlight];
+    if (node && typeof node.scrollIntoView === 'function') {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlight]);
 
   // If we got bounced back here from a cancelled Checkout, surface a toast.
   const cancelled = new URLSearchParams(location.search).get('checkout') === 'cancelled';
@@ -80,8 +93,18 @@ export default function Pricing() {
             {PLANS.map((plan) => {
               const isCurrent = profile?.plan === plan.id;
               const isLoading = busy === plan.id;
+              const isHighlighted = highlight === plan.id;
               return (
-                <div key={plan.id} className={`pr-card ${plan.featured ? 'is-featured' : ''}`}>
+                <div
+                  key={plan.id}
+                  ref={(node) => { cardRefs.current[plan.id] = node; }}
+                  className={`pr-card ${plan.featured ? 'is-featured' : ''}`}
+                  style={
+                    isHighlighted
+                      ? { boxShadow: '0 0 0 2px var(--accent-ring), var(--shadow-pop)' }
+                      : undefined
+                  }
+                >
                   {plan.featured && <div className="pr-flag">Most picked</div>}
                   <div className="pr-name">{plan.name}</div>
                   <div className="pr-price">

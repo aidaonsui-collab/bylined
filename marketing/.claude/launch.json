@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "cito-marketing",
+      "name": "bylined-marketing",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "5188"],
       "port": 5188

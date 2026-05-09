@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
 
 const PASSWORD_MIN = 8;
+const ALLOWED_PLANS = ['solo', 'studio', 'agency', 'scale'];
+
+// Stash the plan the user picked on the marketing site so we can deep-
+// link them to the matching tier on /app/pricing once auth completes.
+// localStorage so the value survives the email-confirmation round-trip
+// (sign-up → email link → /auth/callback → /app/pricing?plan=…).
+const PENDING_PLAN_KEY = 'bylined.pending_plan';
 
 function strength(pw) {
   let s = 0;
@@ -20,10 +27,26 @@ export default function SignUp() {
   const navigate = useNavigate();
   const toast = useToast();
   const { signUp, isAuthed } = useAuth();
+  const [searchParams] = useSearchParams();
+  const planParam = searchParams.get('plan');
+  const plan = ALLOWED_PLANS.includes(planParam) ? planParam : null;
+  const postAuthPath = plan ? `/app/pricing?plan=${plan}` : '/app';
+
+  // Persist the plan as soon as the user lands here from a marketing
+  // CTA — survives the email-confirmation round-trip too.
+  useEffect(() => {
+    if (plan) {
+      try {
+        localStorage.setItem(PENDING_PLAN_KEY, plan);
+      } catch {
+        /* ignore storage errors */
+      }
+    }
+  }, [plan]);
 
   useEffect(() => {
-    if (isAuthed) navigate('/app', { replace: true });
-  }, [isAuthed, navigate]);
+    if (isAuthed) navigate(postAuthPath, { replace: true });
+  }, [isAuthed, navigate, postAuthPath]);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -55,7 +78,7 @@ export default function SignUp() {
         return;
       }
       toast(`Welcome, ${fullName.split(' ')[0]}.`, { tone: 'success' });
-      navigate('/app');
+      navigate(postAuthPath);
     } finally {
       setSubmitting(false);
     }

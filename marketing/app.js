@@ -4,6 +4,31 @@
 (function () {
   'use strict';
 
+  // ─── Dev URL rewriter ──────────────────────────────────────────────
+  // In production, marketing + app sit on the same host, so /sign-up,
+  // /sign-in, /app/* all resolve cleanly. In dev they're on different
+  // ports (marketing :5188, app Vite :5189) — Python's http.server has
+  // no proxy, so plain anchors 404. We detect the dev host by port and
+  // rewrite app-bound links to the Vite origin.
+  //
+  // Set window.BYLINED_APP_ORIGIN before this script loads to override
+  // (e.g. for a staging environment).
+  (() => {
+    const onDevPort = location.port === '5188' || location.port === '5187';
+    const origin = window.BYLINED_APP_ORIGIN
+      ?? (onDevPort ? 'http://localhost:5189' : null);
+    if (!origin) return;
+    // Anything that should hop to the React app: auth flows + /app/*.
+    const isAppPath = (href) =>
+      /^\/(sign-up|sign-in|forgot-password|auth\/|app\/|app\b)/.test(href);
+    document.querySelectorAll('a[href]').forEach((a) => {
+      const href = a.getAttribute('href');
+      if (href && isAppPath(href)) {
+        a.setAttribute('href', origin + href);
+      }
+    });
+  })();
+
   // ─── Dev review toolbar: theme + accent toggle ─────────────────────
   const root = document.documentElement;
   document.querySelectorAll('[data-theme]').forEach((btn) => {
