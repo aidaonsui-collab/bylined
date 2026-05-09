@@ -12,6 +12,7 @@ import CheckEmail from './pages/CheckEmail.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Pricing from './pages/Pricing.jsx';
 import Billing from './pages/Billing.jsx';
+import Sites from './pages/Sites.jsx';
 
 export default function App() {
   return (
@@ -41,6 +42,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Billing />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/sites"
+              element={
+                <ProtectedRoute>
+                  <Sites />
                 </ProtectedRoute>
               }
             />

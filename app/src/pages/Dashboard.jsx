@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import { publishArticle } from '../lib/sites.js';
 
 const POLL_MS = 4000;
 
@@ -34,6 +35,7 @@ function StatusChip({ status }) {
     completed: { label: 'Done', cls: 'chip' },
     failed: { label: 'Failed', cls: 'chip chip-warn' },
     draft: { label: 'Draft', cls: 'chip' },
+    published: { label: 'Published', cls: 'chip chip-accent' },
   };
   const m = map[status] ?? { label: status, cls: 'chip' };
   return <span className={m.cls}>{m.label}</span>;
@@ -60,6 +62,7 @@ export default function Dashboard() {
   const [jobs, setJobs] = useState([]);
   const [articles, setArticles] = useState([]);
   const [subscription, setSubscription] = useState(null);
+  const [sites, setSites] = useState([]);
   const [openArticleId, setOpenArticleId] = useState(null);
 
   const displayName =
@@ -70,7 +73,7 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) return;
-    const [jobsRes, articlesRes, subRes] = await Promise.all([
+    const [jobsRes, articlesRes, subRes, sitesRes] = await Promise.all([
       supabase
         .from('jobs')
         .select('id, keyword, status, error, created_at, completed_at, article_id')
@@ -78,7 +81,7 @@ export default function Dashboard() {
         .limit(20),
       supabase
         .from('articles')
-        .select('id, keyword, title, meta_description, body_markdown, pass_rate, status, generated_at, receipts')
+        .select('id, keyword, title, meta_description, body_markdown, pass_rate, status, generated_at, receipts, cms_post_url, cms_post_id, site_id, published_at')
         .order('generated_at', { ascending: false })
         .limit(20),
       supabase
@@ -88,10 +91,16 @@ export default function Dashboard() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from('sites')
+        .select('id, name, cms_type, is_active')
+        .eq('is_active', true)
+        .order('name'),
     ]);
     setJobs(jobsRes.data ?? []);
     setArticles(articlesRes.data ?? []);
     setSubscription(subRes.data ?? null);
+    setSites(sitesRes.data ?? []);
   }, [user]);
 
   useEffect(() => {
@@ -280,6 +289,8 @@ export default function Dashboard() {
                           )
                         : null
                     }
+                    sites={sites}
+                    onPublished={load}
                     toast={toast}
                   />
                 ))}
@@ -292,7 +303,7 @@ export default function Dashboard() {
   );
 }
 
-function ArticleRow({ row, isOpen, onToggle, toast }) {
+function ArticleRow({ row, isOpen, onToggle, sites, onPublished, toast }) {
   if (row.kind === 'job') {
     const j = row.job;
     return (
@@ -329,6 +340,7 @@ function ArticleRow({ row, isOpen, onToggle, toast }) {
   const a = row.article;
   const verified = (a.receipts ?? []).filter((r) => r.verified).length;
   const total = (a.receipts ?? []).length;
+  const isPublished = a.status === 'published' && a.cms_post_url;
 
   return (
     <div className="app-tile" style={{ padding: 16 }}>
@@ -349,11 +361,12 @@ function ArticleRow({ row, isOpen, onToggle, toast }) {
           flexWrap: 'wrap',
         }}
       >
-        <StatusChip status="completed" />
+        <StatusChip status={isPublished ? 'published' : 'completed'} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, color: 'var(--fg)' }}>{a.title}</div>
           <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
             {a.keyword} · {relTime(a.generated_at)}
+            {isPublished && a.published_at && ` · published ${relTime(a.published_at)}`}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -384,7 +397,7 @@ function ArticleRow({ row, isOpen, onToggle, toast }) {
           >
             {a.body_markdown}
           </pre>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               type="button"
               className="btn btn-sm"
@@ -395,9 +408,107 @@ function ArticleRow({ row, isOpen, onToggle, toast }) {
             >
               Copy markdown
             </button>
+            <PublishControls
+              article={a}
+              sites={sites}
+              onPublished={onPublished}
+              toast={toast}
+            />
+            {isPublished && (
+              <a
+                href={a.cms_post_url}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-sm"
+              >
+                View on site →
+              </a>
+            )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function PublishControls({ article, sites, onPublished, toast }) {
+  const [siteId, setSiteId] = useState(article.site_id ?? sites[0]?.id ?? '');
+  const [live, setLive] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Keep the dropdown in sync with the active sites list as it loads.
+  useEffect(() => {
+    if (!siteId && sites.length > 0) setSiteId(sites[0].id);
+  }, [sites, siteId]);
+
+  if (sites.length === 0) {
+    return (
+      <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+        Connect a site at <Link to="/app/sites">/app/sites</Link> to publish.
+      </span>
+    );
+  }
+
+  const handlePublish = async () => {
+    if (!siteId) return;
+    setBusy(true);
+    const result = await publishArticle({
+      article_id: article.id,
+      site_id: siteId,
+      live,
+    });
+    setBusy(false);
+    if (!result.ok) {
+      toast(result.error || 'Publish failed.', { tone: 'danger' });
+      return;
+    }
+    toast(
+      result.live ? 'Published live.' : 'Draft created on the site.',
+      { tone: 'success' }
+    );
+    onPublished?.();
+  };
+
+  return (
+    <>
+      <select
+        className="input"
+        value={siteId}
+        onChange={(e) => setSiteId(e.target.value)}
+        disabled={busy}
+        style={{ width: 'auto', minWidth: 160, height: 28, fontSize: 12.5 }}
+      >
+        {sites.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name} ({s.cms_type})
+          </option>
+        ))}
+      </select>
+      <label
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 12,
+          color: 'var(--fg-muted)',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={live}
+          onChange={(e) => setLive(e.target.checked)}
+          disabled={busy}
+        />
+        Publish live
+      </label>
+      <button
+        type="button"
+        className="btn btn-sm btn-primary"
+        onClick={handlePublish}
+        disabled={busy || !siteId}
+      >
+        {busy ? 'Publishing…' : article.cms_post_id ? 'Re-publish' : 'Publish'}
+      </button>
+    </>
   );
 }
