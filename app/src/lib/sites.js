@@ -17,7 +17,13 @@ export const CMS_TYPES = [
     helpUrl:
       'https://wordpress.org/documentation/article/application-passwords/',
   },
-  { id: 'webflow', label: 'Webflow', available: false, helpUrl: null },
+  {
+    id: 'webflow',
+    label: 'Webflow',
+    available: true,
+    helpUrl:
+      'https://developers.webflow.com/data/docs/access-token-management',
+  },
   { id: 'shopify', label: 'Shopify', available: false, helpUrl: null },
   { id: 'ghost', label: 'Ghost', available: false, helpUrl: null },
 ];
@@ -27,6 +33,19 @@ export async function verifyWordPress({ url, username, app_password }) {
     url,
     username,
     app_password,
+  });
+  if (!result.ok) return result;
+  return { ok: true, ...result.data };
+}
+
+// Webflow's discovery cascade — token (always), site_id (optional),
+// collection_id (optional). Each step that's filled in unlocks the next
+// piece in the response. See supabase/functions/verify-webflow.
+export async function verifyWebflow({ api_token, site_id, collection_id }) {
+  const result = await invokeEdgeFunction('verify-webflow', {
+    api_token,
+    site_id,
+    collection_id,
   });
   if (!result.ok) return result;
   return { ok: true, ...result.data };

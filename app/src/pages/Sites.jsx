@@ -1,20 +1,20 @@
 // Sites — connect a CMS where Bylined publishes articles.
 //
-// Today: WordPress only (URL + username + Application Password). Webflow
-// + others appear in the picker as "Coming soon" so the IA holds.
+// Supported: WordPress (URL + username + Application Password) and
+// Webflow (API token → site → collection → auto-detected field mapping).
 //
-// The credential leaves the browser exactly twice:
-//   1. Verify — POST to verify-wordpress-site edge function
+// Credentials leave the browser exactly twice:
+//   1. Verify — POST to verify-wordpress-site / verify-webflow
 //   2. Save   — INSERT into public.sites (cms_config jsonb)
-// We never read the password back into the form for editing — instead,
-// "edit" is delete + re-add. Simpler and safer.
+// We never read the password/token back into the form for editing —
+// instead, "edit" is delete + re-add. Simpler and safer.
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
-import { CMS_TYPES, verifyWordPress } from '../lib/sites.js';
+import { CMS_TYPES, verifyWordPress, verifyWebflow } from '../lib/sites.js';
 
 const Logo = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -202,14 +202,71 @@ function SiteRow({ site, onDelete, onTogglePause }) {
 }
 
 function AddSiteForm({ onCancel, onSaved, toast }) {
+  // Platform selector lives in the parent so switching wipes platform-
+  // specific state instead of leaking values across forms.
   const [cmsType, setCmsType] = useState('wordpress');
   const [name, setName] = useState('');
+
+  return (
+    <div className="app-callout" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 24 }}>
+      <div>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>New site</div>
+      </div>
+
+      <label className="field">
+        <span className="field-label">Platform</span>
+        <select
+          className="input"
+          value={cmsType}
+          onChange={(e) => setCmsType(e.target.value)}
+        >
+          {CMS_TYPES.map((c) => (
+            <option key={c.id} value={c.id} disabled={!c.available}>
+              {c.label}
+              {!c.available ? ' — coming soon' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="field">
+        <span className="field-label">Site name</span>
+        <input
+          className="input"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Acme blog"
+          maxLength={80}
+        />
+      </label>
+
+      {cmsType === 'wordpress' ? (
+        <WordPressFields
+          name={name}
+          onCancel={onCancel}
+          onSaved={onSaved}
+          toast={toast}
+        />
+      ) : cmsType === 'webflow' ? (
+        <WebflowFields
+          name={name}
+          onCancel={onCancel}
+          onSaved={onSaved}
+          toast={toast}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function WordPressFields({ name, onCancel, onSaved, toast }) {
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
   const [appPassword, setAppPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(null); // null | { user_name, base_url }
-  const [error, setError] = useState(null); // inline form-level error
+  const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
   // Editing any credential invalidates a previous verify and clears the
@@ -251,7 +308,7 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
     const { error: insertError } = await supabase.from('sites').insert({
       name: name.trim() || verified.base_url,
       domain: new URL(verified.base_url).hostname,
-      cms_type: cmsType,
+      cms_type: 'wordpress',
       cms_config: {
         url: verified.base_url,
         username: username.trim(),
@@ -269,39 +326,10 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
   };
 
   return (
-    <form onSubmit={handleSave} className="app-callout" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 16, marginTop: 24 }}>
-      <div>
-        <div className="eyebrow" style={{ marginBottom: 8 }}>New site</div>
-      </div>
-
-      <label className="field">
-        <span className="field-label">Platform</span>
-        <select
-          className="input"
-          value={cmsType}
-          onChange={(e) => setCmsType(e.target.value)}
-        >
-          {CMS_TYPES.map((c) => (
-            <option key={c.id} value={c.id} disabled={!c.available}>
-              {c.label}
-              {!c.available ? ' — coming soon' : ''}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="field">
-        <span className="field-label">Site name</span>
-        <input
-          className="input"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Acme blog"
-          maxLength={80}
-        />
-      </label>
-
+    <form
+      onSubmit={handleSave}
+      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+    >
       <label className="field">
         <span className="field-label">WordPress site URL</span>
         <input
@@ -422,5 +450,332 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
         </button>
       </div>
     </form>
+  );
+}
+
+function WebflowFields({ name, onCancel, onSaved, toast }) {
+  const [apiToken, setApiToken] = useState('');
+  const [sites, setSites] = useState(null); // null = not discovered yet
+  const [siteId, setSiteId] = useState('');
+  const [collections, setCollections] = useState(null);
+  const [collectionId, setCollectionId] = useState('');
+  const [schema, setSchema] = useState(null);
+  const [mapping, setMapping] = useState(null);
+  const [mappingComplete, setMappingComplete] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [loading, setLoading] = useState(false); // collections / schema
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Editing the token throws away every cascade-level state — selectedSite,
+  // collections, mapping, etc. — since they're only valid for that token.
+  useEffect(() => {
+    setSites(null);
+    setSiteId('');
+    setCollections(null);
+    setCollectionId('');
+    setSchema(null);
+    setMapping(null);
+    setMappingComplete(false);
+    setError(null);
+  }, [apiToken]);
+
+  // Selected site changed → invalidate collection-level state.
+  useEffect(() => {
+    setCollections(null);
+    setCollectionId('');
+    setSchema(null);
+    setMapping(null);
+    setMappingComplete(false);
+  }, [siteId]);
+
+  const handleDiscover = async () => {
+    setDiscovering(true);
+    setError(null);
+    const result = await verifyWebflow({ api_token: apiToken });
+    setDiscovering(false);
+    if (!result.ok) {
+      setError(result.error || 'Could not reach Webflow.');
+      return;
+    }
+    setSites(result.sites ?? []);
+    if ((result.sites ?? []).length === 1) {
+      setSiteId(result.sites[0].id);
+    }
+  };
+
+  const handleSiteChange = async (e) => {
+    const newSiteId = e.target.value;
+    setSiteId(newSiteId);
+    if (!newSiteId) return;
+    setLoading(true);
+    setError(null);
+    const result = await verifyWebflow({ api_token: apiToken, site_id: newSiteId });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error || 'Could not list collections.');
+      return;
+    }
+    setCollections(result.collections ?? []);
+    if ((result.collections ?? []).length === 1) {
+      // Auto-select if there's only one collection — saves a click.
+      handleCollectionChange({ target: { value: result.collections[0].id } }, newSiteId);
+    }
+  };
+
+  const handleCollectionChange = async (e, siteIdOverride) => {
+    const newColId = e.target.value;
+    setCollectionId(newColId);
+    if (!newColId) return;
+    setLoading(true);
+    setError(null);
+    const result = await verifyWebflow({
+      api_token: apiToken,
+      site_id: siteIdOverride ?? siteId,
+      collection_id: newColId,
+    });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error || 'Could not load collection schema.');
+      return;
+    }
+    setSchema(result.schema ?? null);
+    setMapping(result.mapping ?? null);
+    setMappingComplete(Boolean(result.mapping_complete));
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!mappingComplete) {
+      setError('Required field mapping is incomplete — see the Mapping section above.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+
+    const site = sites?.find((s) => s.id === siteId);
+    const collection = collections?.find((c) => c.id === collectionId);
+    if (!site || !collection || !mapping) {
+      setSaving(false);
+      setError('Site or collection state missing — try Discover again.');
+      return;
+    }
+
+    const { error: insertError } = await supabase.from('sites').insert({
+      name: name.trim() || `${site.displayName} · ${collection.displayName}`,
+      domain: `${site.shortName}.webflow.io`,
+      cms_type: 'webflow',
+      cms_config: {
+        api_token: apiToken.trim(),
+        site_id: site.id,
+        site_short_name: site.shortName,
+        site_display_name: site.displayName,
+        collection_id: collection.id,
+        collection_slug: collection.slug,
+        collection_display_name: collection.displayName,
+        mapping: {
+          title: mapping.title,
+          slug: mapping.slug,
+          body: mapping.body,
+          ...(mapping.excerpt ? { excerpt: mapping.excerpt } : {}),
+        },
+      },
+      is_active: true,
+    });
+    setSaving(false);
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    toast('Site connected.', { tone: 'success' });
+    onSaved();
+  };
+
+  const tokenFilled = apiToken.trim().length > 10;
+
+  return (
+    <form
+      onSubmit={handleSave}
+      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+    >
+      <label className="field">
+        <span className="field-label">
+          Webflow API token
+          <a
+            className="field-label-action"
+            href="https://developers.webflow.com/data/docs/access-token-management"
+            target="_blank"
+            rel="noreferrer"
+          >
+            How?
+          </a>
+        </span>
+        <input
+          className="input"
+          type="password"
+          value={apiToken}
+          onChange={(e) => setApiToken(e.target.value)}
+          placeholder="Site Settings → Apps & integrations → API access"
+          autoComplete="new-password"
+          required
+        />
+        <span style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>
+          Permissions needed: CMS read+write, Sites read+publish.
+        </span>
+      </label>
+
+      {sites && sites.length > 0 && (
+        <label className="field">
+          <span className="field-label">Webflow site</span>
+          <select
+            className="input"
+            value={siteId}
+            onChange={handleSiteChange}
+            disabled={loading || saving}
+          >
+            <option value="">— choose —</option>
+            {sites.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.displayName} ({s.shortName}.webflow.io)
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {sites && sites.length === 0 && (
+        <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+          The token authenticated, but it has no sites attached. Re-issue
+          it with read+write CMS access on the site you want to publish to.
+        </div>
+      )}
+
+      {collections && collections.length > 0 && (
+        <label className="field">
+          <span className="field-label">Collection</span>
+          <select
+            className="input"
+            value={collectionId}
+            onChange={handleCollectionChange}
+            disabled={loading || saving}
+          >
+            <option value="">— choose —</option>
+            {collections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.displayName} ({c.slug})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {collections && collections.length === 0 && (
+        <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+          This site has no CMS collections. Add one in Webflow first.
+        </div>
+      )}
+
+      {schema && mapping && (
+        <div
+          className="cito-surface"
+          style={{ padding: 12, fontSize: 13 }}
+        >
+          <div className="eyebrow" style={{ marginBottom: 8 }}>
+            Field mapping {mappingComplete ? '· auto-detected' : '· incomplete'}
+          </div>
+          <MappingRow label="Title" slug={mapping.title} required />
+          <MappingRow label="Slug" slug={mapping.slug} required />
+          <MappingRow label="Body" slug={mapping.body} required />
+          <MappingRow label="Excerpt" slug={mapping.excerpt} />
+          {!mappingComplete && (
+            <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 8 }}>
+              Couldn't auto-detect a required field. Rename your collection's
+              fields to standard slugs (<code>name</code>, <code>slug</code>,
+              and a RichText field with "body" or "post" in its slug) and
+              click the collection again to re-detect.
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: 'rgba(245,200,66,0.10)',
+            border: '1px solid rgba(245,200,66,0.20)',
+            color: 'var(--warn)',
+            padding: '10px 12px',
+            borderRadius: 7,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {!sites ? (
+          <>
+            <button
+              type="button"
+              className="btn"
+              onClick={handleDiscover}
+              disabled={!tokenFilled || discovering}
+            >
+              {discovering ? 'Discovering…' : 'Discover sites'}
+            </button>
+            {!discovering && (
+              <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+                {tokenFilled
+                  ? 'Lists Webflow sites this token can access.'
+                  : 'Paste the API token to enable.'}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="chip chip-faint" title={`${sites.length} site(s)`}>
+            <Check size={11} /> Token verified
+          </span>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={!mappingComplete || saving || loading}
+          title={!mappingComplete ? 'Pick a site + collection with a complete mapping.' : undefined}
+        >
+          {saving ? 'Saving…' : 'Save site'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function MappingRow({ label, slug, required }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '90px 1fr',
+        gap: 8,
+        padding: '4px 0',
+        alignItems: 'center',
+      }}
+    >
+      <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+        {label}
+        {required && <span style={{ color: 'var(--warn)' }}> *</span>}
+      </div>
+      <div className="mono" style={{ fontSize: 12.5, color: slug ? 'var(--fg)' : 'var(--fg-subtle)' }}>
+        {slug ?? '— not detected —'}
+      </div>
+    </div>
   );
 }

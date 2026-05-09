@@ -1,7 +1,7 @@
 // publish-article
 //
-// Publishes a Bylined article to a connected CMS. Supported today: WordPress.
-// Webflow is the next slice.
+// Publishes a Bylined article to a connected CMS. Supported: WordPress,
+// Webflow.
 //
 // Input:  { article_id, site_id, live? }   live=true → status="publish",
 //                                          else status="draft" so the user
@@ -186,6 +186,126 @@ async function publishWordPress(
   };
 }
 
+// ─── Webflow publisher ─────────────────────────────────────────────────
+
+interface WfConfig {
+  api_token: string;
+  site_id: string;
+  site_short_name?: string;
+  collection_id: string;
+  collection_slug?: string;
+  mapping: {
+    title: string;
+    slug: string;
+    body: string;
+    excerpt?: string;
+  };
+}
+
+const WEBFLOW_BASE = "https://api.webflow.com/v2";
+
+async function wfFetch(token: string, path: string, init: RequestInit = {}) {
+  return fetch(`${WEBFLOW_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": "BylinedBot/0.1 (+https://bylined.so/bot)",
+      ...(init.headers ?? {}),
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+}
+
+async function publishWebflow(
+  cfg: WfConfig,
+  args: {
+    title: string;
+    content: string;
+    excerpt: string;
+    slug: string;
+    live: boolean;
+    existing_post_id?: string | null;
+  }
+): Promise<{ id: string; url: string; status: string; edit_url: string }> {
+  // Build fieldData from the user-confirmed mapping. Webflow's API
+  // requires the slugs we discovered at site-setup time.
+  const fieldData: Record<string, string> = {
+    [cfg.mapping.title]: args.title,
+    [cfg.mapping.slug]: args.slug,
+    [cfg.mapping.body]: args.content,
+  };
+  if (cfg.mapping.excerpt && args.excerpt) {
+    fieldData[cfg.mapping.excerpt] = args.excerpt;
+  }
+
+  const body = {
+    isArchived: false,
+    isDraft: !args.live, // Webflow's "draft" = staged in CMS, not visible on the live site
+    fieldData,
+  };
+
+  const isUpdate = Boolean(args.existing_post_id);
+  const endpoint = isUpdate
+    ? `/collections/${cfg.collection_id}/items/${args.existing_post_id}`
+    : `/collections/${cfg.collection_id}/items`;
+
+  const res = await wfFetch(cfg.api_token, endpoint, {
+    method: isUpdate ? "PATCH" : "POST",
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    let detail = await res.text();
+    try {
+      const parsed = JSON.parse(detail);
+      if (parsed?.message) detail = parsed.message;
+    } catch {
+      /* keep raw */
+    }
+    throw new Error(`Webflow ${res.status}: ${detail}`);
+  }
+
+  const data = (await res.json()) as { id: string; lastUpdated?: string };
+
+  // Live publish — Webflow distinguishes between "staged in CMS" and
+  // "deployed to the live site". We push to the .webflow.io subdomain
+  // by default. Custom domains are a v2 follow-up.
+  if (args.live) {
+    const pubRes = await wfFetch(cfg.api_token, `/sites/${cfg.site_id}/publish`, {
+      method: "POST",
+      body: JSON.stringify({ publishToWebflowSubdomain: true }),
+    });
+    if (!pubRes.ok) {
+      // Item created/updated, but live publish failed. Surface the
+      // partial-success so the user can publish from Webflow's UI if
+      // needed.
+      const err = await pubRes.text();
+      throw new Error(
+        `Webflow item saved (${data.id}) but site publish failed: ${err}`
+      );
+    }
+  }
+
+  // Build URLs. Webflow's API doesn't return a public URL on item
+  // create — we synthesize it from site shortName + collection slug +
+  // item slug. If those weren't captured at setup time, fall back to a
+  // CMS-side edit URL only.
+  let publicUrl = "";
+  if (cfg.site_short_name && cfg.collection_slug) {
+    publicUrl = `https://${cfg.site_short_name}.webflow.io/${cfg.collection_slug}/${args.slug}`;
+  }
+  const editUrl = `https://webflow.com/dashboard/sites/${cfg.site_id}/cms/${cfg.collection_id}/items/${data.id}`;
+
+  return {
+    id: data.id,
+    url: publicUrl || editUrl,
+    status: args.live ? "publish" : "draft",
+    edit_url: editUrl,
+  };
+}
+
 // ─── Handler ───────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -270,6 +390,33 @@ Deno.serve(async (req) => {
         existing_post_id: existingPostId,
       });
       result = { id: String(r.id), url: r.url, edit_url: r.edit_url, status: r.status };
+    } else if (site.cms_type === "webflow") {
+      const cfg = site.cms_config as Partial<WfConfig>;
+      if (
+        !cfg?.api_token ||
+        !cfg?.site_id ||
+        !cfg?.collection_id ||
+        !cfg?.mapping?.title ||
+        !cfg?.mapping?.slug ||
+        !cfg?.mapping?.body
+      ) {
+        return jsonResponse(400, {
+          error:
+            "Site is missing Webflow setup (API token, site, collection, " +
+            "or required field mapping).",
+        });
+      }
+      const existingPostId =
+        article.site_id === site.id ? article.cms_post_id : null;
+      const r = await publishWebflow(cfg as WfConfig, {
+        title: article.title,
+        content: fullContent,
+        excerpt: article.meta_description ?? "",
+        slug,
+        live,
+        existing_post_id: existingPostId,
+      });
+      result = { id: r.id, url: r.url, edit_url: r.edit_url, status: r.status };
     } else {
       return jsonResponse(400, {
         error: `Publishing to ${site.cms_type} isn't wired yet.`,
