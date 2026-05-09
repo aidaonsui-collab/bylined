@@ -208,43 +208,46 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
   const [appPassword, setAppPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(null); // null | { user_name, base_url }
+  const [error, setError] = useState(null); // inline form-level error
   const [saving, setSaving] = useState(false);
 
-  // Re-verify if any credential changes after a previous verify.
+  // Editing any credential invalidates a previous verify and clears the
+  // last error so the user gets a clean slate for the next probe.
   useEffect(() => {
     setVerified(null);
+    setError(null);
   }, [url, username, appPassword]);
+
+  const credsFilled = url && username && appPassword;
 
   const handleVerify = async () => {
     setVerifying(true);
+    setError(null);
     const result = await verifyWordPress({
       url,
       username,
       app_password: appPassword,
     });
     setVerifying(false);
+    // verify-wordpress-site returns 200 with { ok: false, error } for
+    // predictable failures (auth, DNS, 404), and surfaces them via the
+    // `result.ok=false` path here.
     if (!result.ok) {
-      toast(result.error || 'Verify failed.', { tone: 'danger' });
-      return;
-    }
-    if (result.ok && result.error) {
-      // The function returns { ok: false, error } as 200 for predictable
-      // user-facing failures. Treat that path the same.
-      toast(result.error, { tone: 'danger' });
+      setError(result.error || 'Verify failed.');
       return;
     }
     setVerified({ user_name: result.user_name, base_url: result.base_url });
-    toast(`Connected as ${result.user_name}.`, { tone: 'success' });
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!verified) {
-      toast('Verify the connection first.', { tone: 'danger' });
+      setError('Click "Verify connection" first — Save activates after a successful test.');
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('sites').insert({
+    setError(null);
+    const { error: insertError } = await supabase.from('sites').insert({
       name: name.trim() || verified.base_url,
       domain: new URL(verified.base_url).hostname,
       cms_type: cmsType,
@@ -256,8 +259,8 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
       is_active: true,
     });
     setSaving(false);
-    if (error) {
-      toast(error.message, { tone: 'danger' });
+    if (insertError) {
+      setError(insertError.message);
       return;
     }
     toast('Site connected.', { tone: 'success' });
@@ -350,20 +353,57 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
         </span>
       </label>
 
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: 'rgba(245,200,66,0.10)',
+            border: '1px solid rgba(245,200,66,0.20)',
+            color: 'var(--warn)',
+            padding: '10px 12px',
+            borderRadius: 7,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         {verified ? (
-          <span className="chip chip-faint">
-            <Check size={11} /> Verified as {verified.user_name}
-          </span>
+          <>
+            <span className="chip chip-faint" title={verified.base_url}>
+              <Check size={11} /> Verified as {verified.user_name}
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={handleVerify}
+              disabled={verifying || saving}
+              title="Re-test the connection"
+            >
+              {verifying ? 'Re-verifying…' : 'Re-verify'}
+            </button>
+          </>
         ) : (
-          <button
-            type="button"
-            className="btn"
-            onClick={handleVerify}
-            disabled={!url || !username || !appPassword || verifying}
-          >
-            {verifying ? 'Verifying…' : 'Verify connection'}
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn"
+              onClick={handleVerify}
+              disabled={!credsFilled || verifying}
+            >
+              {verifying ? 'Verifying…' : 'Verify connection'}
+            </button>
+            {!verifying && (
+              <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+                {credsFilled
+                  ? 'Tests the credentials before saving.'
+                  : 'Fill in URL + username + password to enable.'}
+              </span>
+            )}
+          </>
         )}
 
         <div style={{ flex: 1 }} />
@@ -375,6 +415,7 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
           type="submit"
           className="btn btn-primary"
           disabled={!verified || saving}
+          title={!verified ? 'Verify the connection first.' : undefined}
         >
           {saving ? 'Saving…' : 'Save site'}
         </button>

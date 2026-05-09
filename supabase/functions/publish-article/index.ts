@@ -111,14 +111,28 @@ interface WpConfig {
 
 async function publishWordPress(
   cfg: WpConfig,
-  args: { title: string; content: string; excerpt: string; slug: string; live: boolean }
+  args: {
+    title: string;
+    content: string;
+    excerpt: string;
+    slug: string;
+    live: boolean;
+    // When set, PUT to /posts/{id} instead of POSTing a new one. Used
+    // when the article has already been pushed to this site once before.
+    existing_post_id?: string | null;
+  }
 ): Promise<{ id: number; url: string; status: string; edit_url: string }> {
   const base = cfg.url.replace(/\/+$/, "");
   const status = args.live ? "publish" : "draft";
   const creds = btoa(`${cfg.username}:${cfg.app_password}`);
 
-  const res = await fetch(`${base}/wp-json/wp/v2/posts`, {
-    method: "POST",
+  const isUpdate = Boolean(args.existing_post_id);
+  const endpoint = isUpdate
+    ? `${base}/wp-json/wp/v2/posts/${args.existing_post_id}`
+    : `${base}/wp-json/wp/v2/posts`;
+
+  const res = await fetch(endpoint, {
+    method: isUpdate ? "PUT" : "POST",
     headers: {
       Authorization: `Basic ${creds}`,
       "Content-Type": "application/json",
@@ -142,12 +156,31 @@ async function publishWordPress(
     } catch {
       /* keep raw */
     }
+    // 404 on PUT = the WP post was deleted on their side. Caller can
+    // detect this by status text and retry as a create. For now we just
+    // surface the WP error so the UI shows it.
     throw new Error(`WordPress ${res.status}: ${detail}`);
   }
-  const data = (await res.json()) as { id: number; link: string; status: string };
+  const data = (await res.json()) as {
+    id: number;
+    link: string;
+    slug: string;
+    status: string;
+  };
+
+  // Build the public URL from the site's configured base + WP slug rather
+  // than relying on WP's `link` field, which echoes WP's `home` option.
+  // Behind a reverse proxy / tunnel, `home` often differs from how users
+  // (and our edge function) actually reach the site. Falling back to
+  // `link` if the slug shape isn't what we expect.
+  let publicUrl = data.link;
+  if (data.slug) {
+    publicUrl = `${base}/${data.slug}/`;
+  }
+
   return {
     id: data.id,
-    url: data.link,
+    url: publicUrl,
     status: data.status,
     edit_url: `${base}/wp-admin/post.php?post=${data.id}&action=edit`,
   };
@@ -183,7 +216,10 @@ Deno.serve(async (req) => {
     // Fetch article (RLS: must be owner).
     const { data: article, error: aErr } = await userClient
       .from("articles")
-      .select("id, title, meta_description, body_markdown, receipts")
+      .select(
+        "id, title, meta_description, body_markdown, receipts, " +
+          "site_id, cms_post_id"
+      )
       .eq("id", body.article_id)
       .single();
     if (aErr || !article) {
@@ -219,12 +255,19 @@ Deno.serve(async (req) => {
       if (!cfg?.url || !cfg?.username || !cfg?.app_password) {
         return jsonResponse(400, { error: "Site is missing WordPress credentials." });
       }
+      // Re-publish path: if this article was previously pushed to THIS
+      // site, update the existing WP post instead of creating a new one.
+      // Different-site re-publish creates a fresh post (we only track one
+      // (site, post) pair per article).
+      const existingPostId =
+        article.site_id === site.id ? article.cms_post_id : null;
       const r = await publishWordPress(cfg as WpConfig, {
         title: article.title,
         content: fullContent,
         excerpt: article.meta_description ?? "",
         slug,
         live,
+        existing_post_id: existingPostId,
       });
       result = { id: String(r.id), url: r.url, edit_url: r.edit_url, status: r.status };
     } else {
