@@ -102,7 +102,7 @@ export default function Sites() {
             <Link to="/app/billing">Billing</Link>
           </nav>
           <div className="app-nav-user">
-            <span className="app-nav-email">{user?.email}</span>
+            <Link to="/app/settings" className="app-nav-email">{user?.email}</Link>
             <button type="button" className="btn btn-sm btn-ghost" onClick={signOut}>
               Sign out
             </button>

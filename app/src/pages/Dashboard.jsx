@@ -10,7 +10,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
-import { publishArticle } from '../lib/sites.js';
+import PublishControls from '../components/PublishControls.jsx';
+import OnboardingChecklist from '../components/OnboardingChecklist.jsx';
+import { regenerateArticle, retryJob } from '../lib/jobs.js';
 
 const POLL_MS = 4000;
 
@@ -205,7 +207,7 @@ export default function Dashboard() {
                 {activeSub.articles_used_this_period}/{activeSub.articles_quota} this period
               </span>
             )}
-            <span className="app-nav-email">{user?.email}</span>
+            <Link to="/app/settings" className="app-nav-email">{user?.email}</Link>
             <button type="button" className="btn btn-sm btn-ghost" onClick={signOut}>
               Sign out
             </button>
@@ -223,6 +225,15 @@ export default function Dashboard() {
             Type a keyword. Bylined sources, drafts, and verifies an article — then it
             shows up below.
           </p>
+
+          {activeSub && (
+            <OnboardingChecklist
+              sites={sites}
+              voices={voices}
+              hasArticles={articles.length > 0}
+              userId={user.id}
+            />
+          )}
 
           {!activeSub ? (
             <div className="app-callout" style={{ marginTop: 24 }}>
@@ -337,7 +348,8 @@ export default function Dashboard() {
                         : null
                     }
                     sites={sites}
-                    onPublished={load}
+                    userId={user.id}
+                    onChanged={load}
                     toast={toast}
                   />
                 ))}
@@ -350,9 +362,10 @@ export default function Dashboard() {
   );
 }
 
-function ArticleRow({ row, isOpen, onToggle, sites, onPublished, toast }) {
+function ArticleRow({ row, isOpen, onToggle, sites, userId, onChanged, toast }) {
   if (row.kind === 'job') {
     const j = row.job;
+    const isFailed = j.status === 'failed';
     return (
       <div className="app-tile" style={{ padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -363,8 +376,25 @@ function ArticleRow({ row, isOpen, onToggle, sites, onPublished, toast }) {
               {relTime(j.created_at)}
             </div>
           </div>
+          {isFailed && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={async () => {
+                const result = await retryJob(j.id);
+                if (!result.ok) {
+                  toast(result.error || 'Retry failed.', { tone: 'danger' });
+                  return;
+                }
+                toast('Re-queued — no quota charge for retries.', { tone: 'success' });
+                onChanged?.();
+              }}
+            >
+              Retry
+            </button>
+          )}
         </div>
-        {j.status === 'failed' && j.error && (
+        {isFailed && j.error && (
           <div
             className="mono"
             style={{
@@ -445,6 +475,9 @@ function ArticleRow({ row, isOpen, onToggle, sites, onPublished, toast }) {
             {a.body_markdown}
           </pre>
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Link to={`/app/articles/${a.id}`} className="btn btn-sm">
+              Open detail →
+            </Link>
             <button
               type="button"
               className="btn btn-sm"
@@ -458,7 +491,7 @@ function ArticleRow({ row, isOpen, onToggle, sites, onPublished, toast }) {
             <PublishControls
               article={a}
               sites={sites}
-              onPublished={onPublished}
+              onPublished={onChanged}
               toast={toast}
             />
             {isPublished && (
@@ -471,91 +504,30 @@ function ArticleRow({ row, isOpen, onToggle, sites, onPublished, toast }) {
                 View on site →
               </a>
             )}
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={async () => {
+                if (
+                  !confirm(
+                    'Regenerate? Queues a fresh job (same keyword + voice) and counts as one article against your quota.'
+                  )
+                )
+                  return;
+                const result = await regenerateArticle(a, userId);
+                if (!result.ok) {
+                  toast(result.error, { tone: 'danger' });
+                  return;
+                }
+                toast('Regeneration queued.', { tone: 'success' });
+                onChanged?.();
+              }}
+            >
+              Regenerate
+            </button>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-function PublishControls({ article, sites, onPublished, toast }) {
-  const [siteId, setSiteId] = useState(article.site_id ?? sites[0]?.id ?? '');
-  const [live, setLive] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  // Keep the dropdown in sync with the active sites list as it loads.
-  useEffect(() => {
-    if (!siteId && sites.length > 0) setSiteId(sites[0].id);
-  }, [sites, siteId]);
-
-  if (sites.length === 0) {
-    return (
-      <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-        Connect a site at <Link to="/app/sites">/app/sites</Link> to publish.
-      </span>
-    );
-  }
-
-  const handlePublish = async () => {
-    if (!siteId) return;
-    setBusy(true);
-    const result = await publishArticle({
-      article_id: article.id,
-      site_id: siteId,
-      live,
-    });
-    setBusy(false);
-    if (!result.ok) {
-      toast(result.error || 'Publish failed.', { tone: 'danger' });
-      return;
-    }
-    toast(
-      result.live ? 'Published live.' : 'Draft created on the site.',
-      { tone: 'success' }
-    );
-    onPublished?.();
-  };
-
-  return (
-    <>
-      <select
-        className="input"
-        value={siteId}
-        onChange={(e) => setSiteId(e.target.value)}
-        disabled={busy}
-        style={{ width: 'auto', minWidth: 160, height: 28, fontSize: 12.5 }}
-      >
-        {sites.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name} ({s.cms_type})
-          </option>
-        ))}
-      </select>
-      <label
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: 12,
-          color: 'var(--fg-muted)',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={live}
-          onChange={(e) => setLive(e.target.checked)}
-          disabled={busy}
-        />
-        Publish live
-      </label>
-      <button
-        type="button"
-        className="btn btn-sm btn-primary"
-        onClick={handlePublish}
-        disabled={busy || !siteId}
-      >
-        {busy ? 'Publishing…' : article.cms_post_id ? 'Re-publish' : 'Publish'}
-      </button>
-    </>
   );
 }

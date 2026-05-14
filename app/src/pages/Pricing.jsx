@@ -23,7 +23,7 @@ const ArrowRight = ({ size = 14 }) => (
 );
 
 export default function Pricing() {
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const toast = useToast();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -70,9 +70,11 @@ export default function Pricing() {
             <Link to="/app">Articles</Link>
             <Link to="/app/sites">Sites</Link>
             <Link to="/app/voice">Voice</Link>
+            <Link to="/app/usage">Usage</Link>
             <Link to="/app/billing">Billing</Link>
           </nav>
           <div className="app-nav-user">
+            <Link to="/app/settings" className="app-nav-email">{user?.email}</Link>
             <button type="button" className="btn btn-sm btn-ghost" onClick={signOut}>
               Sign out
             </button>

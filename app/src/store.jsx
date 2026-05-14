@@ -117,6 +117,32 @@ export function AuthProvider({ children }) {
     return { ok: true };
   }, []);
 
+  // Update editable profile fields (just full_name today). RLS policy
+  // update_own_profile permits this; plan + stripe_customer_id stay
+  // server-managed. We patch local state on success so the nav etc.
+  // reflect the change without a reload.
+  const updateProfile = useCallback(
+    async (fields) => {
+      if (!isSupabaseConfigured) return { ok: false, error: 'Supabase not configured.' };
+      if (!user) return { ok: false, error: 'Not signed in.' };
+      const patch = {};
+      if (typeof fields.full_name === 'string') {
+        patch.full_name = fields.full_name.trim();
+      }
+      if (Object.keys(patch).length === 0) return { ok: true };
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(patch)
+        .eq('id', user.id)
+        .select('id, email, full_name, plan, created_at')
+        .single();
+      if (error) return { ok: false, error: error.message };
+      setProfile(data);
+      return { ok: true };
+    },
+    [user]
+  );
+
   const value = {
     user,
     profile,
@@ -127,6 +153,7 @@ export function AuthProvider({ children }) {
     signOut,
     requestPasswordReset,
     updatePassword,
+    updateProfile,
   };
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
