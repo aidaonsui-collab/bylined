@@ -31,6 +31,8 @@ if (SENTRY_DSN) {
     // for an LLM-bound process where one job = many minutes.
     tracesSampleRate: 0,
   });
+  // TODO(revert): one-shot smoke test to confirm Sentry is wired end-to-end.
+  Sentry.captureMessage("worker boot", "info");
 }
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
