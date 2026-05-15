@@ -136,7 +136,7 @@ async function publishWordPress(
     headers: {
       Authorization: `Basic ${creds}`,
       "Content-Type": "application/json",
-      "User-Agent": "BylinedBot/0.1 (+https://bylined.so/bot)",
+      "User-Agent": "BylinedBot/0.1 (+https://getbylined.com/bot)",
     },
     body: JSON.stringify({
       title: args.title,
@@ -211,7 +211,7 @@ async function wfFetch(token: string, path: string, init: RequestInit = {}) {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       Accept: "application/json",
-      "User-Agent": "BylinedBot/0.1 (+https://bylined.so/bot)",
+      "User-Agent": "BylinedBot/0.1 (+https://getbylined.com/bot)",
       ...(init.headers ?? {}),
     },
     signal: AbortSignal.timeout(20_000),

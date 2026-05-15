@@ -100,7 +100,7 @@ async function wfCall<T>(token: string, path: string): Promise<{ ok: true; data:
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
-        "User-Agent": "BylinedBot/0.1 (+https://bylined.so/bot)",
+        "User-Agent": "BylinedBot/0.1 (+https://getbylined.com/bot)",
       },
       signal: AbortSignal.timeout(15_000),
     });

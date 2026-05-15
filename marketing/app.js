@@ -11,7 +11,7 @@
   //
   // Dev:  marketing :5188, app Vite :5189.
   // Prod: marketing on one *.vercel.app, app on another (or a future
-  //       app.bylined.so once a domain is wired).
+  //       app.getbylined.com once a domain is wired).
   //
   // BYLINED_APP_ORIGIN can be set inline on the page (e.g. a per-env
   // <script> baked into index.html) to override either default.

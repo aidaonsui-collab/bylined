@@ -11,7 +11,7 @@
 // Base: https://api.webflow.com/v2
 
 const BASE_URL = "https://api.webflow.com/v2";
-const USER_AGENT = "BylinedBot/0.1 (+https://bylined.so/bot)";
+const USER_AGENT = "BylinedBot/0.1 (+https://getbylined.com/bot)";
 
 export interface WebflowConfig {
   apiToken: string;

@@ -12,7 +12,7 @@ The deployable surfaces and where each runs:
 CI runs on every push: typecheck engine, build app. See `.github/workflows/ci.yml`.
 
 Once a custom domain is wired, switch from "platform subdomains" to a
-proper subdomain split (`bylined.so` → marketing, `app.bylined.so` →
+proper subdomain split (`getbylined.com` → marketing, `app.getbylined.com` →
 SPA) — the marketing `app.js` rewriter is already structured for it.
 
 ---
@@ -114,7 +114,7 @@ Nothing to configure — it just runs.
 ## When a custom domain lands
 
 1. Add the domain in Vercel (one of the two projects gets the apex
-   `bylined.so`, the other gets `app.bylined.so`).
+   `getbylined.com`, the other gets `app.getbylined.com`).
 2. Update Supabase Auth's redirect URLs in
    **Authentication → URL Configuration** to include the prod app
    URL — email confirmations bounce through there.

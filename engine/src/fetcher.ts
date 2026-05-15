@@ -11,7 +11,7 @@ export interface FetchedPage {
 }
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://bylined.so/bot)";
+  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://getbylined.com/bot)";
 
 export async function fetchPage(
   url: string,

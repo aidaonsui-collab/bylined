@@ -23,7 +23,7 @@ export const VoiceFingerprintSchema = z.object({
 export type VoiceFingerprint = z.infer<typeof VoiceFingerprintSchema>;
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://bylined.so/bot)";
+  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://getbylined.com/bot)";
 
 // Pull a handful of internal article-ish links from a site, biased toward
 // blog/article paths. We only need 5-10 representative pages — more

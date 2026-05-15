@@ -72,7 +72,7 @@ export default function Terms() {
 
       <H>8. Contact</H>
       <p>
-        Questions about these terms: <a href="mailto:hi@bylined.so">hi@bylined.so</a>.
+        Questions about these terms: <a href="mailto:hi@getbylined.com">hi@getbylined.com</a>.
       </p>
     </DocLayout>
   );

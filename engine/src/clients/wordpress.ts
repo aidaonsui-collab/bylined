@@ -58,7 +58,7 @@ export async function createPost(
     headers: {
       Authorization: authHeader(cfg),
       "Content-Type": "application/json",
-      "User-Agent": "BylinedBot/0.1 (+https://bylined.so/bot)",
+      "User-Agent": "BylinedBot/0.1 (+https://getbylined.com/bot)",
     },
     body: JSON.stringify({
       title: input.title,

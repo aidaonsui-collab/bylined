@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         headers: {
           Authorization: `Basic ${creds}`,
           Accept: "application/json",
-          "User-Agent": "BylinedBot/0.1 (+https://bylined.so/bot)",
+          "User-Agent": "BylinedBot/0.1 (+https://getbylined.com/bot)",
         },
         // 10s upper bound on dead/slow hosts.
         signal: AbortSignal.timeout(10_000),

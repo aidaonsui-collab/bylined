@@ -52,12 +52,12 @@ export default function Privacy() {
       <p>
         You can access, correct, export, or delete your data. For account
         deletion or a data export, email{' '}
-        <a href="mailto:hi@bylined.so">hi@bylined.so</a>.
+        <a href="mailto:hi@getbylined.com">hi@getbylined.com</a>.
       </p>
 
       <H>Contact</H>
       <p>
-        Privacy questions: <a href="mailto:hi@bylined.so">hi@bylined.so</a>.
+        Privacy questions: <a href="mailto:hi@getbylined.com">hi@getbylined.com</a>.
       </p>
     </DocLayout>
   );

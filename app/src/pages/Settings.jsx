@@ -208,7 +208,7 @@ export default function Settings() {
 
           <p className="app-fineprint" style={{ marginTop: 24, fontSize: 12.5, color: 'var(--fg-subtle)' }}>
             Need to delete your account or export your data? Email{' '}
-            <a href="mailto:hi@bylined.so">hi@bylined.so</a>.
+            <a href="mailto:hi@getbylined.com">hi@getbylined.com</a>.
           </p>
         </div>
       </main>

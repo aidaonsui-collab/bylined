@@ -13,7 +13,7 @@ import { logCost } from "../cost.js";
 
 const SAVE_ENDPOINT = "https://web.archive.org/save";
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://bylined.so/bot)";
+  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://getbylined.com/bot)";
 
 export interface WaybackSnapshot {
   // Calendar URL — Wayback resolves to all known snapshots of this URL.

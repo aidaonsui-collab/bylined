@@ -36,7 +36,7 @@ const CORS_HEADERS = {
 };
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://bylined.so/bot)";
+  "Mozilla/5.0 (compatible; BylinedBot/0.1; +https://getbylined.com/bot)";
 
 function jsonResponse(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
