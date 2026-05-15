@@ -15,11 +15,8 @@
   //
   // BYLINED_APP_ORIGIN can be set inline on the page (e.g. a per-env
   // <script> baked into index.html) to override either default.
-  //
-  // *** AFTER FIRST PROD DEPLOY: update APP_ORIGIN_PROD below with the
-  // ***  actual Vercel URL of the app project.
   const APP_ORIGIN_DEV = 'http://localhost:5189';
-  const APP_ORIGIN_PROD = 'https://bylined-app.vercel.app'; // placeholder
+  const APP_ORIGIN_PROD = 'https://bylined-app.vercel.app';
   (() => {
     const host = location.hostname;
     const onDevPort = location.port === '5188' || location.port === '5187';
