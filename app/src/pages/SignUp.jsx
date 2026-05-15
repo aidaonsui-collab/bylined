@@ -6,7 +6,11 @@ import AuthLayout from '../components/AuthLayout.jsx';
 import SocialAuth from '../components/SocialAuth.jsx';
 
 const PASSWORD_MIN = 8;
-const ALLOWED_PLANS = ['solo', 'studio', 'agency', 'scale'];
+// 'pilot' is the free 14-day trial — no Stripe checkout, AuthCallback
+// calls the start-pilot edge function and lands the user on /app.
+// 'solo' is retained for legacy customers still on that paid tier but
+// is no longer offered on the marketing site.
+const ALLOWED_PLANS = ['pilot', 'solo', 'studio', 'agency', 'scale'];
 
 // Stash the plan the user picked on the marketing site so we can deep-
 // link them to the matching tier on /app/pricing once auth completes.
@@ -31,7 +35,15 @@ export default function SignUp() {
   const [searchParams] = useSearchParams();
   const planParam = searchParams.get('plan');
   const plan = ALLOWED_PLANS.includes(planParam) ? planParam : null;
-  const postAuthPath = plan ? `/app/pricing?plan=${plan}` : '/app';
+  // Pilot lands directly on /app (AuthCallback creates the trial sub
+  // behind the scenes); paid plans still hop through /app/pricing for
+  // checkout.
+  const postAuthPath =
+    plan === 'pilot'
+      ? '/app?pilot=started'
+      : plan
+        ? `/app/pricing?plan=${plan}`
+        : '/app';
 
   // Persist the plan as soon as the user lands here from a marketing
   // CTA — survives the email-confirmation round-trip too.

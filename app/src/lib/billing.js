@@ -6,16 +6,13 @@ import { invokeEdgeFunction } from './stripe.js';
 // Hard-coded plan catalog. Price IDs are produced by
 // scripts/setup-stripe.ts and synced here. To regenerate: run the
 // script, then copy from scripts/.stripe-setup-output.json.
+//
+// 'solo' ($39/10 articles) was removed from the public catalog when
+// we shipped the free Pilot trial — new signups never see it. The
+// Stripe price still exists for any legacy customer on the tier;
+// they keep working unchanged because quota enforcement reads the
+// subscriptions row, not this list.
 export const PLANS = [
-  {
-    id: 'solo',
-    name: 'Solo',
-    priceMonthly: 39,
-    articles: 10,
-    description: '10 articles / month',
-    tagline: 'For first sites',
-    priceId: 'price_1TUvxLIa0nbOr6yh344cOip6',
-  },
   {
     id: 'studio',
     name: 'Studio',

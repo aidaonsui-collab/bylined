@@ -30,6 +30,49 @@ const ArrowRight = ({ size = 14 }) => (
   </svg>
 );
 
+// Free-trial heads-up shown at the top of the dashboard when the
+// active subscription is a Pilot. Surfaces days/articles left and a
+// direct upgrade CTA so the user understands the trial is finite and
+// where to go when they want more. Once the period_end is in the past
+// the enforce_jobs_quota trigger already blocks new jobs — this just
+// makes the state visible before the user hits that wall.
+function PilotTrialBanner({ sub }) {
+  const remaining = Math.max(0, sub.articles_quota - sub.articles_used_this_period);
+  const endMs = new Date(sub.current_period_end).getTime();
+  const daysLeft = Math.max(0, Math.ceil((endMs - Date.now()) / (24 * 60 * 60 * 1000)));
+  const expired = daysLeft === 0 || remaining === 0;
+  return (
+    <div
+      className="app-callout"
+      style={{
+        marginTop: 24,
+        borderColor: expired ? 'var(--accent-ring)' : undefined,
+        background: expired ? 'var(--accent-faint)' : undefined,
+      }}
+    >
+      <div>
+        <div className="eyebrow" style={{ marginBottom: 8 }}>
+          {expired ? 'Trial ended' : 'Free trial'}
+        </div>
+        <p className="app-callout-p">
+          {expired ? (
+            <>You've used your free trial. Upgrade to keep generating verified articles.</>
+          ) : (
+            <>
+              <strong>{remaining}</strong> {remaining === 1 ? 'article' : 'articles'} and{' '}
+              <strong>{daysLeft}</strong> {daysLeft === 1 ? 'day' : 'days'} left in your trial.
+              Upgrade anytime to keep going.
+            </>
+          )}
+        </p>
+      </div>
+      <Link to="/app/pricing" className="btn btn-primary" style={{ marginLeft: 'auto' }}>
+        Upgrade <ArrowRight />
+      </Link>
+    </div>
+  );
+}
+
 function StatusChip({ status }) {
   const map = {
     queued: { label: 'Queued', cls: 'chip chip-faint' },
@@ -225,6 +268,10 @@ export default function Dashboard() {
             Type a keyword. Bylined sources, drafts, and verifies an article — then it
             shows up below.
           </p>
+
+          {activeSub && activeSub.plan === 'pilot' && (
+            <PilotTrialBanner sub={activeSub} />
+          )}
 
           {activeSub && (
             <OnboardingChecklist
