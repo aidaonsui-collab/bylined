@@ -3,11 +3,7 @@
   "framework": null,
   "buildCommand": null,
   "outputDirectory": ".",
-
-  "// cleanUrls": "Lets /pricing serve pricing.html, /receipts serve receipts.html — same behavior dev (python http.server resolves files) and prod.",
   "cleanUrls": true,
-
-  "// headers": "Don't cache the HTML aggressively; CSS/JS are versioned per deploy by Vercel.",
   "headers": [
     {
       "source": "/(.*\\.html)",

@@ -4,13 +4,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
-
-  "// rewrites": "SPA fallback — every non-asset path serves index.html so React Router takes over. Vercel only matches /(.*) after asset files have been resolved by the filesystem layer.",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
-
-  "// headers": "Long-cache hashed asset bundles; HTML must revalidate so a fresh deploy is picked up immediately.",
   "headers": [
     {
       "source": "/assets/(.*)",
