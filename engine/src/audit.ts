@@ -21,22 +21,8 @@
 
 import { fetchPage } from "./fetcher.js";
 import { chatJSON } from "./clients/minimax.js";
-import { searchSerp } from "./clients/ddg.js";
-import { searchBrave, hasBraveSearchKey } from "./clients/brave.js";
+import { search, hasBraveSearchKey } from "./search.js";
 import type { SerpResult } from "./types.js";
-
-// Search backend selection: prefer Brave when the key is set (reliable,
-// won't be IP-blocked on cloud providers). Fall back to the free DDG
-// HTML scraper for local dev when there's no key, even though it's
-// unreliable for production — running with no grounding at all is worse
-// than a flaky DDG.
-function searchForAudit(
-  q: string,
-  count: number
-): Promise<SerpResult[]> {
-  if (hasBraveSearchKey()) return searchBrave(q, count);
-  return searchSerp(q, count);
-}
 
 const RUNS_PER_QUESTION = 3;
 
@@ -212,7 +198,7 @@ export async function auditSite(
   );
   const searchResults = await Promise.all(
     questions.map((q) =>
-      searchForAudit(q, 8).catch((e: unknown) => {
+      search(q, 8).catch((e: unknown) => {
         log(
           `  search failed for "${q.slice(0, 40)}…": ${
             e instanceof Error ? e.message : String(e)

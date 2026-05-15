@@ -1,4 +1,4 @@
-import { searchSerp } from "./clients/ddg.js";
+import { search } from "./search.js";
 import { fetchPage, type FetchedPage } from "./fetcher.js";
 import { extractFacts } from "./extractor.js";
 import { generateArticle } from "./generator.js";
@@ -18,10 +18,15 @@ export async function generate(opts: GenerateOptions): Promise<Article> {
   const log = opts.log ?? ((msg: string) => console.log(`[bylined] ${msg}`));
   const startedAt = new Date().toISOString();
 
-  // 1. SERP fetch
+  // 1. SERP fetch (Brave in production, DDG fallback for local dev)
   log(`searching SERP for: ${opts.keyword}`);
-  const serpResults = await searchSerp(opts.keyword, opts.serpCount ?? 10);
+  const serpResults = await search(opts.keyword, opts.serpCount ?? 10);
   log(`SERP returned ${serpResults.length} results`);
+  if (serpResults.length === 0) {
+    throw new Error(
+      "Search returned no results for this keyword — can't build a sourced article."
+    );
+  }
 
   // 2. Fetch each page in parallel (failures are logged + skipped)
   log(`fetching ${serpResults.length} pages...`);
