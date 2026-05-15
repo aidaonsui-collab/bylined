@@ -1,23 +1,16 @@
-// Usage — COGS dashboard.
+// Usage — customer-value dashboard.
 //
-// Reads from public.cost_events + the cost_per_article and
-// cost_per_user_day views. RLS scopes everything to the calling user,
-// so this page is safe under the authenticated client without any
-// edge-function involvement.
+// What this page is NOT: a COGS dashboard. We used to show Bylined's
+// raw LLM/SERP costs here, which made it look like we were marking up
+// fractions of a cent into $99/mo subscriptions. That was internal
+// data leaking into a customer-facing page.
 //
-// What we show:
-//   1. This-period summary cards (mirrors articles_used / quota from
-//      subscriptions, plus total + per-article spend).
-//   2. 14-day daily-spend bar chart (rendered as inline SVG — no
-//      charting library since the data shape is small and we already
-//      ship enough JS).
-//   3. Per-article breakdown table — total cost + LLM/SERP/page/verify
-//      split + event count per article, joined to articles for title.
+// What this page IS: a snapshot of what the customer got for their
+// subscription this period — how many articles, how many citations
+// verified, how many landed on their site.
 //
-// The dashboard is intentionally COGS-focused (what Bylined spends to
-// generate articles for this user), not customer-facing pricing. Useful
-// while we tune margins; if it ever ships to end users we'll reframe
-// the numbers.
+// All counts pulled from public.articles (RLS-scoped to the user) and
+// public.subscriptions (period bounds + quota). No cost tables touched.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -32,12 +25,9 @@ const Logo = ({ size = 14 }) => (
   </svg>
 );
 
-// Round to a reasonable USD display: <$1 → 4 decimals, ≥$1 → 2.
-function fmtUsd(n) {
-  const v = Number(n ?? 0);
-  if (v === 0) return '$0';
-  if (v < 1) return `$${v.toFixed(4)}`;
-  return `$${v.toFixed(2)}`;
+function fmtPct(n) {
+  if (n == null || Number.isNaN(n)) return '—';
+  return `${Math.round(n * 100)}%`;
 }
 
 function fmtCount(n) {
@@ -51,71 +41,22 @@ function shortDate(iso) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-// Build a 14-day backfilled timeseries: every day appears even if the
-// view returned no row for it. We prefer empty bars to gaps so the
-// trend reads cleanly.
-function buildDailySeries(rows, days = 14) {
-  const byDay = new Map();
-  for (const r of rows ?? []) {
-    const day = r.day.slice(0, 10);
-    byDay.set(day, Number(r.total_cost_usd ?? 0));
+// Friendly status chip. Maps the internal article.status enum into the
+// label the customer cares about.
+function StatusChip({ status, hasPublishedUrl }) {
+  if (status === 'published' && hasPublishedUrl) {
+    return <span className="chip chip-accent">Live</span>;
   }
-  const out = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setUTCDate(today.getUTCDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    out.push({ day: key, cost: byDay.get(key) ?? 0 });
-  }
-  return out;
-}
-
-function SparkBar({ series }) {
-  const max = Math.max(0, ...series.map((d) => d.cost));
-  const W = 100; // viewBox width
-  const H = 30;
-  const barW = W / series.length;
-  const pad = 1;
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      width="100%"
-      height={56}
-      style={{ display: 'block' }}
-      aria-label="Daily spend, last 14 days"
-    >
-      {series.map((d, i) => {
-        const h = max > 0 ? (d.cost / max) * (H - 2) : 0;
-        return (
-          <rect
-            key={d.day}
-            x={i * barW + pad / 2}
-            y={H - h}
-            width={barW - pad}
-            height={Math.max(h, 0.5)}
-            fill={d.cost > 0 ? 'var(--accent)' : 'var(--border-2)'}
-            opacity={d.cost > 0 ? 0.85 : 0.5}
-          >
-            <title>{`${d.day}: ${fmtUsd(d.cost)}`}</title>
-          </rect>
-        );
-      })}
-    </svg>
-  );
+  if (status === 'failed') return <span className="chip chip-danger">Failed</span>;
+  if (status === 'scheduled') return <span className="chip">Scheduled</span>;
+  return <span className="chip">Draft</span>;
 }
 
 export default function Usage() {
   const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
-  const [perArticle, setPerArticle] = useState([]);
-  const [perDay, setPerDay] = useState([]);
-  const [periodTotals, setPeriodTotals] = useState({
-    total_cost: 0,
-    event_count: 0,
-  });
+  const [articles, setArticles] = useState([]);
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) {
@@ -123,11 +64,11 @@ export default function Usage() {
       return;
     }
 
-    // Fetch the active subscription first so we know the period bounds.
+    // Active subscription — quota + period bounds.
     const { data: sub } = await supabase
       .from('subscriptions')
       .select(
-        'plan, status, articles_used_this_period, articles_quota, current_period_start, current_period_end'
+        'plan, status, articles_used_this_period, articles_quota, current_period_end'
       )
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -135,50 +76,16 @@ export default function Usage() {
       .maybeSingle();
     setSubscription(sub ?? null);
 
-    // 14 days of daily totals (RLS-scoped via the view).
-    const since = new Date();
-    since.setUTCDate(since.getUTCDate() - 14);
-    const { data: days } = await supabase
-      .from('cost_per_user_day')
-      .select('day, event_count, total_cost_usd, input_tokens, output_tokens')
-      .gte('day', since.toISOString())
-      .order('day', { ascending: true });
-    setPerDay(days ?? []);
-
-    // Per-article rollup. Views don't reliably auto-embed via PostgREST,
-    // so we fetch the matching articles separately and merge client-side.
-    const { data: pa } = await supabase
-      .from('cost_per_article')
+    // Articles generated this period — RLS scopes to the calling user.
+    // We need title, status, pass_rate, citation receipts, publish info.
+    const { data: arts } = await supabase
+      .from('articles')
       .select(
-        'article_id, event_count, total_cost_usd, llm_cost_usd, ' +
-          'serp_cost_usd, page_fetch_cost_usd, verify_cost_usd, last_event_at'
+        'id, title, keyword, status, pass_rate, receipts, cms_post_url, published_at, generated_at'
       )
-      .order('last_event_at', { ascending: false })
+      .order('generated_at', { ascending: false })
       .limit(50);
-    if (pa && pa.length > 0) {
-      const ids = pa.map((r) => r.article_id);
-      const { data: articles } = await supabase
-        .from('articles')
-        .select('id, title, keyword, generated_at, status')
-        .in('id', ids);
-      const byId = new Map((articles ?? []).map((a) => [a.id, a]));
-      setPerArticle(pa.map((r) => ({ ...r, article: byId.get(r.article_id) })));
-    } else {
-      setPerArticle([]);
-    }
-
-    // Total spend within the current billing period.
-    if (sub?.current_period_start) {
-      const { data: sums } = await supabase
-        .from('cost_events')
-        .select('cost_usd')
-        .gte('created_at', sub.current_period_start);
-      const cost = (sums ?? []).reduce(
-        (s, r) => s + Number(r.cost_usd ?? 0),
-        0
-      );
-      setPeriodTotals({ total_cost: cost, event_count: (sums ?? []).length });
-    }
+    setArticles(arts ?? []);
 
     setLoading(false);
   }, [user]);
@@ -187,12 +94,29 @@ export default function Usage() {
     load();
   }, [load]);
 
-  const series = useMemo(() => buildDailySeries(perDay, 14), [perDay]);
-
   const articlesThisPeriod = subscription?.articles_used_this_period ?? 0;
   const quota = subscription?.articles_quota ?? 0;
-  const avgPerArticle =
-    articlesThisPeriod > 0 ? periodTotals.total_cost / articlesThisPeriod : 0;
+
+  // Aggregate citation pass rate across all articles (event-weighted by
+  // citation count, not article-weighted — one 50-cite article matters
+  // more than one 3-cite article).
+  const citationStats = useMemo(() => {
+    let pass = 0;
+    let total = 0;
+    for (const a of articles) {
+      const cites = a.receipts ?? [];
+      total += cites.length;
+      pass += cites.filter((r) => r.verified).length;
+    }
+    return { pass, total, rate: total > 0 ? pass / total : null };
+  }, [articles]);
+
+  const publishedCount = useMemo(
+    () =>
+      articles.filter((a) => a.status === 'published' && a.cms_post_url)
+        .length,
+    [articles]
+  );
 
   return (
     <div className="app-shell">
@@ -221,10 +145,10 @@ export default function Usage() {
       <main className="app-main">
         <div className="app-container">
           <div className="eyebrow" style={{ marginBottom: 14 }}>Usage</div>
-          <h1 className="app-h1 serif">Spend & generation history</h1>
+          <h1 className="app-h1 serif">Your articles this period</h1>
           <p className="app-lede">
-            What it costs Bylined to produce your articles. Tracks every LLM
-            call, SERP query, page fetch, and citation re-fetch.
+            What your subscription got you — articles generated, citations
+            verified, posts published. Resets every billing cycle.
           </p>
 
           {/* ─── Period summary cards ───────────────────────────── */}
@@ -237,28 +161,36 @@ export default function Usage() {
             }}
           >
             <SummaryCard
-              label="This period"
+              label="Articles this period"
               primary={`${articlesThisPeriod} / ${quota || '—'}`}
-              sub="articles used"
-            />
-            <SummaryCard
-              label="Spend (period)"
-              primary={fmtUsd(periodTotals.total_cost)}
-              sub={`${periodTotals.event_count} events`}
-            />
-            <SummaryCard
-              label="Avg per article"
-              primary={fmtUsd(avgPerArticle)}
               sub={
-                articlesThisPeriod > 0
-                  ? `over ${articlesThisPeriod} ${
-                      articlesThisPeriod === 1 ? 'article' : 'articles'
-                    }`
-                  : '—'
+                quota > 0
+                  ? `${Math.max(0, quota - articlesThisPeriod)} remaining`
+                  : 'no active plan'
               }
             />
             <SummaryCard
-              label="Period ends"
+              label="Citation pass rate"
+              primary={fmtPct(citationStats.rate)}
+              sub={
+                citationStats.total > 0
+                  ? `${fmtCount(citationStats.pass)} of ${fmtCount(citationStats.total)} verified`
+                  : 'no citations yet'
+              }
+            />
+            <SummaryCard
+              label="Published live"
+              primary={`${publishedCount} of ${articles.length}`}
+              sub={
+                articles.length === 0
+                  ? '—'
+                  : publishedCount === articles.length
+                    ? 'everything is live'
+                    : 'the rest are drafts'
+              }
+            />
+            <SummaryCard
+              label="Period resets"
               primary={
                 subscription?.current_period_end
                   ? new Date(
@@ -273,50 +205,18 @@ export default function Usage() {
             />
           </div>
 
-          {/* ─── Daily trend ────────────────────────────────────── */}
-          <div style={{ marginTop: 40 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                marginBottom: 8,
-              }}
-            >
-              <div className="eyebrow">Daily spend</div>
-              <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-                last 14 days
-              </span>
-            </div>
-            <div className="app-callout" style={{ flexDirection: 'column', alignItems: 'stretch', padding: 16 }}>
-              <SparkBar series={series} />
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginTop: 8,
-                  fontSize: 11,
-                  color: 'var(--fg-subtle)',
-                }}
-              >
-                <span>{shortDate(series[0]?.day)}</span>
-                <span>{shortDate(series[series.length - 1]?.day)}</span>
-              </div>
-            </div>
-          </div>
-
           {/* ─── Per-article table ──────────────────────────────── */}
           <div style={{ marginTop: 40 }}>
             <div className="eyebrow" style={{ marginBottom: 12 }}>
-              Per article
+              Recent articles
             </div>
             {loading ? (
               <div className="app-callout"><div>Loading…</div></div>
-            ) : perArticle.length === 0 ? (
+            ) : articles.length === 0 ? (
               <div className="app-callout">
                 <div style={{ color: 'var(--fg-muted)' }}>
-                  No cost data yet. Generate an article from{' '}
-                  <Link to="/app">/app</Link> to see costs land here.
+                  Nothing generated yet. Head to{' '}
+                  <Link to="/app">Articles</Link> to write your first one.
                 </div>
               </div>
             ) : (
@@ -328,33 +228,54 @@ export default function Usage() {
                   <thead>
                     <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                       <Th left>Article</Th>
-                      <Th>When</Th>
-                      <Th right>Total</Th>
-                      <Th right>LLM</Th>
-                      <Th right>Verify</Th>
-                      <Th right>Events</Th>
+                      <Th>Generated</Th>
+                      <Th>Status</Th>
+                      <Th right>Citations</Th>
+                      <Th>Where</Th>
                     </tr>
                   </thead>
                   <tbody>
-                    {perArticle.map((r) => {
-                      const a = r.article;
+                    {articles.map((a) => {
+                      const cites = a.receipts ?? [];
+                      const verified = cites.filter((r) => r.verified).length;
                       return (
-                        <tr key={r.article_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
                           <Td left>
                             <div style={{ fontWeight: 500, color: 'var(--fg)' }}>
-                              {a?.title ?? '(deleted)'}
+                              {a.title ?? '(untitled)'}
                             </div>
-                            {a?.keyword && (
+                            {a.keyword && (
                               <div style={{ fontSize: 11.5, color: 'var(--fg-muted)' }}>
                                 {a.keyword}
                               </div>
                             )}
                           </Td>
-                          <Td>{shortDate(r.last_event_at)}</Td>
-                          <Td right mono>{fmtUsd(r.total_cost_usd)}</Td>
-                          <Td right mono>{fmtUsd(r.llm_cost_usd)}</Td>
-                          <Td right mono>{fmtUsd(r.verify_cost_usd)}</Td>
-                          <Td right mono>{fmtCount(r.event_count)}</Td>
+                          <Td>{shortDate(a.generated_at)}</Td>
+                          <Td>
+                            <StatusChip
+                              status={a.status}
+                              hasPublishedUrl={!!a.cms_post_url}
+                            />
+                          </Td>
+                          <Td right mono>
+                            {cites.length > 0
+                              ? `${verified}/${cites.length} · ${fmtPct(a.pass_rate)}`
+                              : '—'}
+                          </Td>
+                          <Td>
+                            {a.cms_post_url ? (
+                              <a
+                                href={a.cms_post_url}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                style={{ color: 'var(--accent-text)', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                              >
+                                View live ↗
+                              </a>
+                            ) : (
+                              <span style={{ color: 'var(--fg-subtle)' }}>Draft</span>
+                            )}
+                          </Td>
                         </tr>
                       );
                     })}
@@ -363,10 +284,10 @@ export default function Usage() {
               </div>
             )}
             <p className="app-fineprint" style={{ marginTop: 14, fontSize: 12, color: 'var(--fg-subtle)' }}>
-              "LLM" includes extraction, generation, and voice fingerprint
-              calls. "Verify" is the per-citation URL re-fetches in the
-              validation gate. SERP and page fetches are free with the
-              current providers.
+              Articles count toward your monthly quota the moment they're
+              generated — drafts and published posts both count. Citations
+              are URL-verified at generation time and the pass rate
+              reflects how many of those re-fetches succeeded.
             </p>
           </div>
         </div>
