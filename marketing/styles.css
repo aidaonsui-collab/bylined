@@ -1226,3 +1226,31 @@ a { color: inherit; text-decoration: none; }
 }
 .demo-transcript-verdict.is-named { color: var(--success); }
 .demo-transcript-verdict.is-missing { color: var(--danger); }
+
+/* Audit summary banner — pinned at the top of the article phase so the
+   "you're invisible" finding stays in view next to the fix. */
+.demo-audit-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: 8px;
+  padding: 10px 13px;
+  margin-bottom: 18px;
+}
+.demo-audit-banner-text {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+.demo-audit-banner-text strong { color: var(--fg); font-weight: 600; }
+.demo-audit-banner-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-text);
+  white-space: nowrap;
+}

@@ -265,6 +265,7 @@
     let pollTimer = null;
     let pollStartedAt = 0;
     let currentUrl = ''; // kept so the audit's "fix it" CTA can re-request
+    let lastAudit = null; // the audit result, kept across the phase-2 re-render
 
     function panel(headLabel, dotClass, bodyHtml) {
       livePanel.hidden = false;
@@ -276,12 +277,37 @@
         '<div class="demo-live-body">' + bodyHtml + '</div>';
     }
 
+    // Compact strip that keeps the audit's finding visible once we move
+    // to the article phase — without it, clicking "fix it" wipes the
+    // problem and you lose the before/after punch. '' if no audit ran.
+    function auditSummaryBanner() {
+      if (!lastAudit) return '';
+      const a = lastAudit;
+      const total = a.total_runs || 0;
+      const named = a.mention_count || 0;
+      const compCount = (a.competitors || []).length;
+      return (
+        '<div class="demo-audit-banner">' +
+          '<span class="demo-audit-banner-text">' +
+            '<strong>AI visibility check:</strong> ' + esc(a.brand_name) +
+            ' named in <strong>' + named + ' of ' + total + '</strong> AI answers' +
+            (compCount
+              ? ' · <strong>' + compCount + '</strong> competitor' +
+                (compCount === 1 ? '' : 's') + ' named instead'
+              : '') +
+          '</span>' +
+          '<span class="demo-audit-banner-tag">the fix ↓</span>' +
+        '</div>'
+      );
+    }
+
     function showRunning(kind, progressText, keyword) {
       const head =
         kind === 'audit' ? 'Checking your AI visibility' : 'Watching Bylined work';
       panel(
         head,
         '',
+        (kind === 'article' ? auditSummaryBanner() : '') +
         '<div class="demo-progress">' +
           '<span class="demo-spinner"></span>' +
           '<span>' + esc(progressText || 'Starting…') + '</span>' +
@@ -306,6 +332,7 @@
 
     // ── Audit result — the "gap" half ──────────────────────────────
     function showAuditResult(r) {
+      lastAudit = r; // preserved so the article phase can keep it in view
       const total = r.total_runs || 0;
       const named = r.mention_count || 0;
       const gap = named === 0;
@@ -386,7 +413,8 @@
       panel(
         'Your article — written, sourced, verified',
         'is-done',
-        (r.keyword ? '<div class="demo-result-kw">Topic: ' + esc(r.keyword) + '</div>' : '') +
+        auditSummaryBanner() +
+          (r.keyword ? '<div class="demo-result-kw">Topic: ' + esc(r.keyword) + '</div>' : '') +
           '<h3 class="demo-result-title">' + esc(r.title) + '</h3>' +
           '<div class="demo-result-excerpt">' + esc(r.body_excerpt) +
           '…</div><div class="demo-result-fade"></div>' +
