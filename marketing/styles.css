@@ -1231,3 +1231,25 @@ a { color: inherit; text-decoration: none; }
   color: var(--accent-text);
   white-space: nowrap;
 }
+
+/* ─── Legal pages prose (privacy.html, terms.html) ─────────────── */
+.legal-prose h2 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 28px 0 8px;
+}
+.legal-prose p {
+  color: var(--fg-subtle);
+  font-size: 15px;
+  line-height: 1.65;
+  margin: 0 0 14px;
+}
+.legal-prose a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.legal-prose a:hover {
+  text-decoration: none;
+}
