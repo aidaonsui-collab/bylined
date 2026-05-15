@@ -38,7 +38,115 @@ import { generate } from "./orchestrator.js";
 import { inferKeywordFromSite } from "./demo.js";
 import { auditSite } from "./audit.js";
 import { startRun, setRunContext, clearRunContext } from "./cost.js";
+import { markdownToHtml, buildSourcesHtml } from "./markdown.js";
 import type { Article } from "./types.js";
+
+const BYLINED_HOSTED_DEPLOY_HOOK = process.env.BYLINED_HOSTED_DEPLOY_HOOK;
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 70);
+}
+
+// Auto-publish a freshly-generated article when the job carries an
+// auto_publish_site_id. Mirrors the publish-article edge function's
+// bylined_hosted branch but runs server-side as service-role so we
+// don't have to mint a user JWT.
+//
+// Only handles cms_type='bylined_hosted' right now — WordPress and
+// Webflow auto-publish are deliberately deferred until we want the
+// worker handling those credential paths. For other site types this
+// helper logs a warning and returns; the article remains a draft and
+// the user can publish manually from the dashboard.
+async function autoPublishToSite(args: {
+  articleId: string;
+  article: Article;
+  userId: string;
+  siteId: string;
+  live: boolean;
+  log: (msg: string) => void;
+}): Promise<void> {
+  const { articleId, article, userId, siteId, live, log } = args;
+
+  const { data: site, error: sErr } = await admin
+    .from("sites")
+    .select("id, name, cms_type, is_active, user_id")
+    .eq("id", siteId)
+    .single();
+  if (sErr || !site) throw new Error(`auto-publish: site not found (${sErr?.message ?? siteId})`);
+  if (site.user_id !== userId) throw new Error(`auto-publish: site doesn't belong to caller`);
+  if (!site.is_active) throw new Error(`auto-publish: site is paused`);
+
+  if (site.cms_type !== "bylined_hosted") {
+    log(
+      `auto-publish skipped: site cms_type '${site.cms_type}' isn't supported ` +
+        `by the worker yet — publish manually from the dashboard. ` +
+        `Article saved as draft.`
+    );
+    return;
+  }
+
+  const bodyHtml = markdownToHtml(article.body_markdown);
+  const sourcesHtml = buildSourcesHtml(article.receipts ?? []);
+  const slug = slugify(article.title);
+
+  const { error: upErr } = await admin
+    .from("blog_posts")
+    .upsert(
+      {
+        user_id: userId,
+        article_id: articleId,
+        site_id: siteId,
+        slug,
+        title: article.title,
+        meta_description: article.meta_description,
+        body_html: bodyHtml,
+        sources_html: sourcesHtml,
+        status: live ? "published" : "draft",
+        published_at: live ? new Date().toISOString() : null,
+      },
+      { onConflict: "article_id,site_id" }
+    );
+  if (upErr) throw new Error(`blog_posts upsert failed: ${upErr.message}`);
+
+  // Mirror the article row's published state so the dashboard "Published"
+  // chip lights up without the user clicking anywhere.
+  if (live) {
+    await admin
+      .from("articles")
+      .update({
+        site_id: siteId,
+        cms_post_url: `https://getbylined.com/blog/${slug}`,
+        status: "published",
+        published_at: new Date().toISOString(),
+      })
+      .eq("id", articleId);
+  }
+
+  // Fire the marketing rebuild hook so the static page goes live
+  // within ~30s. Drafts skip the rebuild — no point in burning a
+  // Vercel build for something the visitor can't see anyway.
+  if (live && BYLINED_HOSTED_DEPLOY_HOOK) {
+    try {
+      await fetch(BYLINED_HOSTED_DEPLOY_HOOK, {
+        method: "POST",
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (e) {
+      // Don't fail auto-publish on a flapping hook — the blog_posts
+      // row is committed and the next deploy will pick it up.
+      console.error(
+        `[worker] BYLINED_HOSTED_DEPLOY_HOOK failed (article still in DB):`,
+        e instanceof Error ? e.message : String(e)
+      );
+    }
+  }
+
+  log(`auto-published to ${site.name} as ${live ? "live" : "draft"}`);
+}
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -67,6 +175,12 @@ interface Job {
   voice_id: string | null;
   keyword: string;
   status: string;
+  // Set by the dashboard's bulk-queue form. When non-null, the worker
+  // publishes the generated article to this site as soon as the article
+  // row lands — no manual click required. auto_publish_live=true means
+  // "ship as published", false means "stage as draft on the CMS side".
+  auto_publish_site_id: string | null;
+  auto_publish_live: boolean;
 }
 
 interface DemoRequest {
@@ -191,6 +305,35 @@ async function runJob(job: Job): Promise<void> {
         `[worker:${job.id.slice(0, 8)}] cost_events backfill failed:`,
         backfillErr.message
       );
+    }
+
+    // 4c. Auto-publish if the job asked for it. Currently only the
+    //     bylined_hosted target is wired here — WordPress / Webflow
+    //     credentials live on the site row and we don't want the
+    //     worker reaching into those flows yet. Sites of those types
+    //     emit a warning and the article stays a draft (user can
+    //     publish manually from the dashboard).
+    if (job.auto_publish_site_id) {
+      try {
+        await autoPublishToSite({
+          articleId: inserted.id,
+          article,
+          userId: job.user_id,
+          siteId: job.auto_publish_site_id,
+          live: job.auto_publish_live,
+          log,
+        });
+      } catch (e) {
+        // Auto-publish failure is logged + reported but does NOT fail
+        // the whole job — the article was generated and stored. The
+        // user can retry publish from the dashboard.
+        const msg = e instanceof Error ? e.message : String(e);
+        log(`auto-publish failed (article still saved as draft): ${msg}`);
+        Sentry.captureException(e, {
+          tags: { worker_path: "auto_publish" },
+          contexts: { job: { id: job.id, keyword: job.keyword } },
+        });
+      }
     }
 
     // 5. Increment quota usage (only on success).

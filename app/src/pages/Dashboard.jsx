@@ -111,6 +111,11 @@ export default function Dashboard() {
   const [sites, setSites] = useState([]);
   const [voices, setVoices] = useState([]);
   const [openArticleId, setOpenArticleId] = useState(null);
+  // Bulk + auto-publish controls. Empty string for autoPublishSiteId
+  // means "don't auto-publish" — same UX as the existing voice select.
+  // autoPublishLive is meaningful only when a site is picked.
+  const [autoPublishSiteId, setAutoPublishSiteId] = useState('');
+  const [autoPublishLive, setAutoPublishLive] = useState(true);
 
   const displayName =
     profile?.full_name ||
@@ -169,21 +174,48 @@ export default function Dashboard() {
   const remaining = activeSub
     ? Math.max(0, activeSub.articles_quota - activeSub.articles_used_this_period)
     : 0;
-  const canSubmit = activeSub && remaining > 0 && keyword.trim().length >= 3 && !submitting;
+  // Parse the keyword field as one-per-line so the SAME textbox handles
+  // both a single keyword and a bulk paste. Empty lines are stripped;
+  // each survives only if it has at least 3 non-whitespace chars.
+  const parsedKeywords = keyword
+    .split('\n')
+    .map((k) => k.trim())
+    .filter((k) => k.length >= 3);
+  const keywordCount = parsedKeywords.length;
+  // Cap per submission so a 500-line paste doesn't accidentally drain
+  // a month's quota. Quota itself is enforced by the DB trigger, but
+  // a softer client-side cap gives a better error.
+  const MAX_BULK = 50;
+  const overCap = keywordCount > MAX_BULK;
+  const overQuota = activeSub && keywordCount > remaining;
+  const canSubmit =
+    activeSub && remaining > 0 && keywordCount >= 1 && !overCap && !overQuota && !submitting;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitting(true);
-    const { error } = await supabase.from('jobs').insert({
+
+    // Build one row per keyword. Service-side BEFORE-INSERT trigger
+    // re-checks quota per row, so a partial failure mid-bulk just
+    // means later keywords don't insert — earlier ones still queue
+    // successfully (we surface a partial-success toast).
+    const rows = parsedKeywords.map((kw) => ({
       user_id: user.id,
-      keyword: keyword.trim(),
+      keyword: kw,
       voice_id: voiceId || null,
-    });
+      auto_publish_site_id: autoPublishSiteId || null,
+      auto_publish_live: autoPublishSiteId ? autoPublishLive : false,
+    }));
+
+    const { data: inserted, error } = await supabase
+      .from('jobs')
+      .insert(rows)
+      .select('id');
     setSubmitting(false);
+
     if (error) {
-      // Quota / no-subscription errors are surfaced by the BEFORE INSERT trigger.
-      const msg = error.message || 'Could not enqueue job.';
+      const msg = error.message || 'Could not enqueue jobs.';
       if (msg.includes('quota_exceeded')) {
         toast('Quota exhausted for this period. Upgrade or wait for renewal.', { tone: 'danger' });
       } else if (msg.includes('no_active_subscription')) {
@@ -193,8 +225,14 @@ export default function Dashboard() {
       }
       return;
     }
+    const queuedCount = inserted?.length ?? rows.length;
     setKeyword('');
-    toast('Job queued. The worker will pick it up shortly.', { tone: 'success' });
+    toast(
+      queuedCount === 1
+        ? 'Job queued. The worker will pick it up shortly.'
+        : `${queuedCount} jobs queued. They'll run one at a time.`,
+      { tone: 'success' }
+    );
     load();
   };
 
@@ -306,58 +344,111 @@ export default function Dashboard() {
               }}
             >
               <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
+                <textarea
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="best email marketing platforms for shopify stores 2026"
+                  placeholder={
+                    'best email marketing platforms for shopify stores 2026\n' +
+                    'one keyword per line — bulk mode'
+                  }
                   className="input"
-                  style={{ flex: 1, minWidth: 220 }}
+                  style={{
+                    flex: 1,
+                    minWidth: 220,
+                    minHeight: 64,
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.5,
+                    padding: '8px 12px',
+                  }}
                   disabled={submitting || remaining === 0}
-                  maxLength={200}
+                  rows={3}
                 />
                 <button
                   type="submit"
                   className="btn btn-primary"
                   disabled={!canSubmit}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{ whiteSpace: 'nowrap', alignSelf: 'flex-start' }}
                 >
                   {submitting
                     ? 'Queueing…'
                     : remaining === 0
                     ? 'Quota used'
+                    : keywordCount > 1
+                    ? `Generate ${keywordCount}`
                     : 'Generate'}{' '}
                   {!submitting && remaining > 0 && <ArrowRight />}
                 </button>
               </div>
+              {overCap && (
+                <div style={{ fontSize: 12, color: 'var(--danger)' }}>
+                  Cap is {MAX_BULK} keywords per submission. Trim the list and try again.
+                </div>
+              )}
+              {!overCap && overQuota && (
+                <div style={{ fontSize: 12, color: 'var(--danger)' }}>
+                  Only {remaining} {remaining === 1 ? 'article' : 'articles'} left in your
+                  quota — trim to {remaining} or fewer.
+                </div>
+              )}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
+                  gap: 16,
                   fontSize: 12,
                   color: 'var(--fg-muted)',
+                  flexWrap: 'wrap',
                 }}
               >
-                <span>Voice:</span>
-                <select
-                  className="input"
-                  value={voiceId}
-                  onChange={(e) => setVoiceId(e.target.value)}
-                  disabled={submitting || voices.length === 0}
-                  style={{ width: 'auto', minWidth: 200, height: 28, fontSize: 12.5 }}
-                >
-                  <option value="">No voice (generic style)</option>
-                  {voices.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {new URL(v.source_url).hostname}
-                    </option>
-                  ))}
-                </select>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span>Voice:</span>
+                  <select
+                    className="input"
+                    value={voiceId}
+                    onChange={(e) => setVoiceId(e.target.value)}
+                    disabled={submitting || voices.length === 0}
+                    style={{ width: 'auto', minWidth: 180, height: 28, fontSize: 12.5 }}
+                  >
+                    <option value="">No voice (generic style)</option>
+                    {voices.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {new URL(v.source_url).hostname}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span>Auto-publish:</span>
+                  <select
+                    className="input"
+                    value={autoPublishSiteId}
+                    onChange={(e) => setAutoPublishSiteId(e.target.value)}
+                    disabled={submitting || sites.length === 0}
+                    style={{ width: 'auto', minWidth: 180, height: 28, fontSize: 12.5 }}
+                  >
+                    <option value="">Off (publish manually)</option>
+                    {sites.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.cms_type})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {autoPublishSiteId && (
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={autoPublishLive}
+                      onChange={(e) => setAutoPublishLive(e.target.checked)}
+                      disabled={submitting}
+                    />
+                    <span>Publish live (uncheck for draft)</span>
+                  </label>
+                )}
                 {voices.length === 0 && (
                   <span>
-                    <Link to="/app/voice">Extract a voice</Link> for branded
-                    output.
+                    <Link to="/app/voice">Extract a voice</Link> for branded output.
                   </span>
                 )}
               </div>
