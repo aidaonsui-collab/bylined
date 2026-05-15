@@ -9,6 +9,7 @@
     "preview": "vite preview --port 5189"
   },
   "dependencies": {
+    "@sentry/react": "^10.53.1",
     "@stripe/react-stripe-js": "^6.3.0",
     "@stripe/stripe-js": "^9.4.0",
     "@supabase/supabase-js": "^2.105.1",
