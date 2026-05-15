@@ -16,8 +16,6 @@ if (SENTRY_DSN) {
     environment: import.meta.env.VITE_SENTRY_ENV ?? 'production',
     tracesSampleRate: 0,
   });
-  // TODO(revert): one-shot smoke test to confirm Sentry is wired end-to-end.
-  Sentry.captureMessage('app boot', 'info');
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
