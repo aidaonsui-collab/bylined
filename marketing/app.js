@@ -232,6 +232,28 @@
     // for verify_jwt=false functions.
     const ANON_KEY = 'sb_publishable_bpV29JM65vrJI1pgUVlKdg_5ZDisV3Y';
     const POLL_MS = 2500;
+
+    // Admin bypass: if the visitor lands with ?admin=<token> in the URL,
+    // capture it and persist for this tab only (sessionStorage so it
+    // doesn't survive a tab close — keeps the surface small if someone
+    // borrows the laptop). Then strip the param from the visible URL so
+    // it doesn't sit in history/referrers/screenshots. The token rides
+    // along in the request-demo body and is checked against the
+    // ADMIN_DEMO_TOKEN env var on the function. Used to demo Bylined
+    // live to multiple people without hitting the per-IP cap.
+    const urlParams = new URLSearchParams(window.location.search);
+    const incomingAdmin = urlParams.get('admin');
+    if (incomingAdmin) {
+      try { sessionStorage.setItem('bylined_admin_token', incomingAdmin); } catch {}
+      urlParams.delete('admin');
+      const cleanQs = urlParams.toString();
+      const cleanUrl =
+        window.location.pathname + (cleanQs ? '?' + cleanQs : '') + window.location.hash;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+    function getAdminToken() {
+      try { return sessionStorage.getItem('bylined_admin_token') || null; } catch { return null; }
+    }
     const POLL_TIMEOUT_MS = 240000; // give up after 4 min
 
     // App origin for the post-demo CTAs — same rule as the page-load
@@ -489,10 +511,15 @@
           : 'Queuing your article…'
       );
       try {
+        const adminToken = getAdminToken();
         const res = await fetch(SUPABASE_FN + '/request-demo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
-          body: JSON.stringify({ url, kind }),
+          body: JSON.stringify({
+            url,
+            kind,
+            ...(adminToken ? { admin_token: adminToken } : {}),
+          }),
         });
         const data = await res.json();
         if (!res.ok || !data.ok) {

@@ -26,6 +26,14 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const PER_IP_DAILY = 5;
 const GLOBAL_DAILY = 100;
 
+// Admin-bypass token. When set on the function's env, any request whose
+// body carries a matching admin_token skips both rate limits. Used to
+// demo Bylined live to multiple people in a day without hitting the
+// per-IP cap. Token is captured from `?admin=…` on the marketing site
+// (see marketing/app.js) and passed in the request body so it never
+// sits in server-side URL logs.
+const ADMIN_DEMO_TOKEN = Deno.env.get("ADMIN_DEMO_TOKEN");
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -37,6 +45,15 @@ function jsonResponse(status: number, body: unknown) {
     status,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
+}
+
+// Constant-time string compare so the admin token's prefix can't be
+// timing-leaked one byte at a time.
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 // Reject anything that isn't a public http(s) URL. Catches localhost,
@@ -95,7 +112,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = (await req.json().catch(() => null)) as
-      | { url?: string; kind?: string }
+      | { url?: string; kind?: string; admin_token?: string }
       | null;
     const check = validatePublicUrl(body?.url ?? "");
     if (!check.ok) return jsonResponse(400, { error: check.error });
@@ -110,38 +127,49 @@ Deno.serve(async (req) => {
       req.headers.get("cf-connecting-ip") ||
       "unknown";
 
+    // Admin bypass — if env token is set and the body carries it,
+    // skip rate limits entirely. Constant-time compare so a probing
+    // attacker can't time-leak the prefix.
+    const isAdmin =
+      Boolean(ADMIN_DEMO_TOKEN) &&
+      typeof body?.admin_token === "string" &&
+      body.admin_token.length === ADMIN_DEMO_TOKEN!.length &&
+      timingSafeEqual(body.admin_token, ADMIN_DEMO_TOKEN!);
+
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
     });
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    // Global daily cap — protects the Minimax quota above all else.
-    const { count: globalCount } = await admin
-      .from("demo_requests")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", since);
-    if ((globalCount ?? 0) >= GLOBAL_DAILY) {
-      return jsonResponse(429, {
-        error:
-          "The live demo is at capacity for today. Sign up free to skip the " +
-          "line — your first article runs immediately.",
-      });
-    }
-
-    // Per-IP daily cap.
-    if (ip !== "unknown") {
-      const { count: ipCount } = await admin
+    if (!isAdmin) {
+      // Global daily cap — protects the Minimax quota above all else.
+      const { count: globalCount } = await admin
         .from("demo_requests")
         .select("id", { count: "exact", head: true })
-        .eq("ip", ip)
         .gte("created_at", since);
-      if ((ipCount ?? 0) >= PER_IP_DAILY) {
+      if ((globalCount ?? 0) >= GLOBAL_DAILY) {
         return jsonResponse(429, {
           error:
-            "You've used today's free demo runs. Sign up free to generate " +
-            "as many as your plan allows.",
+            "The live demo is at capacity for today. Sign up free to skip the " +
+            "line — your first article runs immediately.",
         });
+      }
+
+      // Per-IP daily cap.
+      if (ip !== "unknown") {
+        const { count: ipCount } = await admin
+          .from("demo_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("ip", ip)
+          .gte("created_at", since);
+        if ((ipCount ?? 0) >= PER_IP_DAILY) {
+          return jsonResponse(429, {
+            error:
+              "You've used today's free demo runs. Sign up free to generate " +
+              "as many as your plan allows.",
+          });
+        }
       }
     }
 
