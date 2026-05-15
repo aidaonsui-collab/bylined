@@ -37,28 +37,7 @@
     });
   })();
 
-  // ─── Dev review toolbar: theme + accent toggle ─────────────────────
-  const root = document.documentElement;
-  document.querySelectorAll('[data-theme]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const t = btn.dataset.theme;
-      root.classList.toggle('light', t === 'light');
-      document.querySelectorAll('[data-theme]').forEach((b) =>
-        b.classList.toggle('is-on', b.dataset.theme === t)
-      );
-    });
-  });
-  document.querySelectorAll('[data-accent]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const a = btn.dataset.accent;
-      root.classList.toggle('accent-teal', a === 'teal');
-      document.querySelectorAll('[data-accent]').forEach((b) =>
-        b.classList.toggle('is-on', b.dataset.accent === a)
-      );
-    });
-  });
-
-  // ─── Hero demo: cite/receipt hover + pin + connecting line ─────────
+// ─── Hero demo: cite/receipt hover + pin + connecting line ─────────
   const demo = document.getElementById('hero-demo');
   if (demo) {
     const body = demo.querySelector('.hero-demo-body');
