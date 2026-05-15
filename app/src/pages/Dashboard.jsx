@@ -13,6 +13,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import PublishControls from '../components/PublishControls.jsx';
 import OnboardingChecklist from '../components/OnboardingChecklist.jsx';
 import { regenerateArticle, retryJob } from '../lib/jobs.js';
+import { renderArticle } from '../lib/renderArticle.js';
 
 const POLL_MS = 4000;
 
@@ -501,6 +502,17 @@ export default function Dashboard() {
 }
 
 function ArticleRow({ row, isOpen, onToggle, sites, userId, onChanged, toast }) {
+  // Preview ⇄ raw toggle, scoped to this row. Preview is the default
+  // because the question users ask when expanding an article is "what
+  // will this look like once published?" — not "show me the markdown."
+  const [bodyView, setBodyView] = useState('preview');
+  const renderedHtml = useMemo(
+    () =>
+      row.kind === 'article'
+        ? renderArticle(row.article.body_markdown, row.article.receipts)
+        : '',
+    [row]
+  );
   if (row.kind === 'job') {
     const j = row.job;
     const isFailed = j.status === 'failed';
@@ -597,21 +609,58 @@ function ArticleRow({ row, isOpen, onToggle, sites, userId, onChanged, toast }) 
               {a.meta_description}
             </p>
           )}
-          <pre
+          <div
             style={{
-              background: 'rgba(255,255,255,0.03)',
-              padding: 14,
-              borderRadius: 8,
-              maxHeight: 420,
-              overflow: 'auto',
-              whiteSpace: 'pre-wrap',
-              fontSize: 13,
-              lineHeight: 1.55,
-              color: 'var(--fg)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+              gap: 8,
             }}
           >
-            {a.body_markdown}
-          </pre>
+            <span style={{ fontSize: 11.5, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
+              {bodyView === 'preview' ? 'Preview' : 'Raw markdown'}
+            </span>
+            <div style={{ display: 'inline-flex', gap: 4 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${bodyView === 'preview' ? '' : 'btn-ghost'}`}
+                onClick={() => setBodyView('preview')}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${bodyView === 'raw' ? '' : 'btn-ghost'}`}
+                onClick={() => setBodyView('raw')}
+              >
+                Raw
+              </button>
+            </div>
+          </div>
+          {bodyView === 'preview' ? (
+            <div
+              className="article-prose"
+              style={{ maxHeight: 480, overflow: 'auto', padding: 18 }}
+              dangerouslySetInnerHTML={{ __html: renderedHtml }}
+            />
+          ) : (
+            <pre
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                padding: 14,
+                borderRadius: 8,
+                maxHeight: 420,
+                overflow: 'auto',
+                whiteSpace: 'pre-wrap',
+                fontSize: 13,
+                lineHeight: 1.55,
+                color: 'var(--fg)',
+              }}
+            >
+              {a.body_markdown}
+            </pre>
+          )}
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <Link to={`/app/articles/${a.id}`} className="btn btn-sm">
               Open detail →

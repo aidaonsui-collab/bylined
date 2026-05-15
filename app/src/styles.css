@@ -992,3 +992,62 @@ a { color: inherit; text-decoration: none; }
   .footer-cols { grid-template-columns: 1fr 1fr; }
   .pp-compare { font-size: 12px; }
 }
+
+/* ─── Article preview (Dashboard + ArticleDetail) ──────────────── */
+/* Renders body_markdown the way visitors see it on /blog/{slug}.
+   Receipts at the bottom get a #receipt-N anchor so the inline
+   superscript citations actually jump to them. */
+.article-prose {
+  background: rgba(255,255,255,0.03);
+  padding: 24px 28px;
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+.article-prose h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 28px 0 10px;
+  letter-spacing: -0.01em;
+}
+.article-prose h2:first-child { margin-top: 0; }
+.article-prose h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 22px 0 8px;
+}
+.article-prose p {
+  margin: 0 0 14px;
+  color: var(--fg-muted);
+}
+.article-prose sup a {
+  color: var(--accent-text);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0 2px;
+  font-size: 11px;
+}
+.article-prose sup a:hover {
+  text-decoration: underline;
+}
+.article-prose a {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.article-prose a:hover { text-decoration: none; }
+.article-prose ol {
+  padding-left: 22px;
+  margin: 12px 0;
+}
+.article-prose ol li {
+  font-size: 13.5px;
+  color: var(--fg-subtle);
+  line-height: 1.55;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+.article-prose strong { color: var(--fg); font-weight: 600; }

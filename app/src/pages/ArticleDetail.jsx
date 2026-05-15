@@ -10,13 +10,14 @@
 // let unsourced claims slip in under the "every claim sourced" promise.
 // They can copy the markdown out and edit on the CMS side if they want.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import PublishControls from '../components/PublishControls.jsx';
 import { regenerateArticle } from '../lib/jobs.js';
+import { renderArticle } from '../lib/renderArticle.js';
 
 const Logo = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -52,6 +53,10 @@ export default function ArticleDetail() {
   const [title, setTitle] = useState('');
   const [meta, setMeta] = useState('');
   const [savingMeta, setSavingMeta] = useState(false);
+  // Preview ⇄ raw-markdown toggle on the body. Default is preview
+  // (rendered HTML) so users see what visitors will see before
+  // publishing; raw is one click away for power users / debugging.
+  const [bodyView, setBodyView] = useState('preview');
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) {
@@ -134,6 +139,13 @@ export default function ArticleDetail() {
   const receipts = article?.receipts ?? [];
   const verified = receipts.filter((r) => r.verified);
   const failed = receipts.filter((r) => !r.verified);
+  // Pre-render preview HTML once per body change so the toggle is
+  // instant. Receipts list at the end is part of the preview because
+  // that's exactly what visitors see on the live blog.
+  const renderedHtml = useMemo(
+    () => (article ? renderArticle(article.body_markdown, receipts) : ''),
+    [article, receipts]
+  );
 
   return (
     <div className="app-shell">
@@ -277,24 +289,63 @@ export default function ArticleDetail() {
 
               {/* ─── Body ──────────────────────────────────── */}
               <div style={{ marginTop: 32 }}>
-                <div className="eyebrow" style={{ marginBottom: 10 }}>Body</div>
-                <pre
+                <div
                   style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    padding: 16,
-                    borderRadius: 8,
-                    whiteSpace: 'pre-wrap',
-                    fontSize: 13.5,
-                    lineHeight: 1.6,
-                    color: 'var(--fg)',
-                    overflow: 'auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 10,
+                    flexWrap: 'wrap',
+                    gap: 8,
                   }}
                 >
-                  {article.body_markdown}
-                </pre>
+                  <div className="eyebrow">
+                    {bodyView === 'preview' ? 'Preview — how visitors will see it' : 'Raw markdown'}
+                  </div>
+                  <div style={{ display: 'inline-flex', gap: 4 }}>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${bodyView === 'preview' ? '' : 'btn-ghost'}`}
+                      onClick={() => setBodyView('preview')}
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${bodyView === 'raw' ? '' : 'btn-ghost'}`}
+                      onClick={() => setBodyView('raw')}
+                    >
+                      Raw
+                    </button>
+                  </div>
+                </div>
+
+                {bodyView === 'preview' ? (
+                  <div
+                    className="article-prose"
+                    dangerouslySetInnerHTML={{ __html: renderedHtml }}
+                  />
+                ) : (
+                  <pre
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      padding: 16,
+                      borderRadius: 8,
+                      whiteSpace: 'pre-wrap',
+                      fontSize: 13.5,
+                      lineHeight: 1.6,
+                      color: 'var(--fg)',
+                      overflow: 'auto',
+                    }}
+                  >
+                    {article.body_markdown}
+                  </pre>
+                )}
+
                 <p style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 8 }}>
-                  Body is read-only — it's the verified artifact. Copy the
-                  markdown to edit it on your CMS side.
+                  Body is read-only — it's the verified artifact. Use Regenerate
+                  to produce a new version, or copy the markdown and edit on
+                  your CMS after publish.
                 </p>
               </div>
 
