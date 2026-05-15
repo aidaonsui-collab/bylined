@@ -22,6 +22,7 @@ import "dotenv/config";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generate } from "./orchestrator.js";
 import { inferKeywordFromSite } from "./demo.js";
+import { auditSite } from "./audit.js";
 import { startRun, setRunContext, clearRunContext } from "./cost.js";
 import type { Article } from "./types.js";
 
@@ -58,6 +59,7 @@ interface DemoRequest {
   id: string;
   url: string;
   status: string;
+  kind: "audit" | "article";
 }
 
 let stopping = false;
@@ -252,7 +254,53 @@ async function failDemo(demoId: string, message: string): Promise<void> {
   if (error) console.error("[worker] failDemo update error:", error.message);
 }
 
-async function runDemo(demo: DemoRequest): Promise<void> {
+// AI-visibility audit — the fast "what's the gap" half of the demo
+// flow. Crawls the site, asks an AI 5 buyer questions ×3, tallies who
+// got named. Cheap-ish (16 short LLM calls) and reads back in ~20-40s.
+async function runDemoAudit(demo: DemoRequest): Promise<void> {
+  const tag = `[worker:audit:${demo.id.slice(0, 8)}]`;
+  startRun(`audit-${demo.id.slice(0, 8)}`);
+  clearRunContext(); // demos have no user — keep cost events local-only
+  console.log(`${tag} claimed: url="${demo.url}"`);
+
+  try {
+    await setDemoProgress(demo.id, "Reading your site…");
+    const audit = await auditSite(demo.url, (msg) => {
+      console.log(`${tag} ${msg}`);
+      // Map the audit's internal log lines to friendly progress.
+      if (msg.startsWith("working out")) {
+        void setDemoProgress(demo.id, "Working out what your customers ask…");
+      } else if (msg.startsWith("asking the AI")) {
+        void setDemoProgress(demo.id, "Asking an AI what your customers ask…");
+      }
+    });
+
+    const result = { kind: "audit", ...audit };
+    const { error: doneErr } = await admin
+      .from("demo_requests")
+      .update({
+        status: "completed",
+        progress: "Done.",
+        keyword: audit.category,
+        result,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", demo.id);
+    if (doneErr) throw new Error(`demo update failed: ${doneErr.message}`);
+    console.log(
+      `${tag} ✓ done — "${audit.brand_name}" mentioned in ` +
+        `${audit.mention_count}/${audit.total_runs} runs`
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`${tag} ✗ failed:`, msg);
+    await failDemo(demo.id, msg);
+  } finally {
+    clearRunContext();
+  }
+}
+
+async function runDemoArticle(demo: DemoRequest): Promise<void> {
   const tag = `[worker:demo:${demo.id.slice(0, 8)}]`;
   const runId = startRun(`demo-${demo.id.slice(0, 8)}`);
   // Demos have no user — leave runContext empty so cost events stay
@@ -338,7 +386,8 @@ async function loop(): Promise<void> {
     }
     const demo = await claimNextDemo();
     if (demo) {
-      await runDemo(demo);
+      if (demo.kind === "audit") await runDemoAudit(demo);
+      else await runDemoArticle(demo);
       continue;
     }
     await sleep(POLL_MS);

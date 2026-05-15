@@ -94,9 +94,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
 
   try {
-    const body = (await req.json().catch(() => null)) as { url?: string } | null;
+    const body = (await req.json().catch(() => null)) as
+      | { url?: string; kind?: string }
+      | null;
     const check = validatePublicUrl(body?.url ?? "");
     if (!check.ok) return jsonResponse(400, { error: check.error });
+
+    // 'audit' (fast AI-visibility check) or 'article' (full demo
+    // generation). Default 'article' keeps any older caller working.
+    const kind = body?.kind === "audit" ? "audit" : "article";
 
     // Best-effort client IP for rate limiting.
     const ip =
@@ -141,7 +147,7 @@ Deno.serve(async (req) => {
 
     const { data: inserted, error: insertErr } = await admin
       .from("demo_requests")
-      .insert({ url: check.url, ip, status: "queued" })
+      .insert({ url: check.url, ip, status: "queued", kind })
       .select("id")
       .single();
     if (insertErr) {
@@ -149,7 +155,7 @@ Deno.serve(async (req) => {
       return jsonResponse(500, { error: "Could not start the demo. Try again." });
     }
 
-    return jsonResponse(200, { ok: true, demo_id: inserted.id });
+    return jsonResponse(200, { ok: true, demo_id: inserted.id, kind });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("request-demo error:", msg);

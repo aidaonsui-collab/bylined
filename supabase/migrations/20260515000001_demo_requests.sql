@@ -85,3 +85,11 @@ $$;
 REVOKE ALL ON FUNCTION public.claim_next_demo() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.claim_next_demo() FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_next_demo() TO service_role;
+
+-- ─── 20260515___kind: two-phase demo flow ───────────────────────────
+-- Added when the marketing hero became audit → article. The worker
+-- branches on `kind`; demo-status and claim_next_demo stay kind-
+-- agnostic (the result jsonb carries its own shape per kind).
+ALTER TABLE public.demo_requests
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'article'
+    CHECK (kind IN ('audit', 'article'));

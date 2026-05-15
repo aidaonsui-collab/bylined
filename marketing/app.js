@@ -231,9 +231,13 @@
   }
 
   // ─── Live demo hook ────────────────────────────────────────────────
-  // Hero URL input → request-demo edge function → poll demo-status →
-  // render the "watching it work" panel and the finished article. See
-  // supabase/functions/{request-demo,demo-status}.
+  // Two-phase flow off one URL input:
+  //   1. audit   — "does AI recommend you?" — fast, shows the gap.
+  //   2. article — "here's the article that fixes it" — the full
+  //                generate() pipeline, triggered by the audit's CTA.
+  // Both go through request-demo / demo-status; the worker branches on
+  // `kind`. See supabase/functions/{request-demo,demo-status} and
+  // engine/src/{audit,demo}.ts.
   const demoForm = document.getElementById('demo-form');
   if (demoForm) {
     const SUPABASE_FN = 'https://boatyhrefcilcxepnbbf.supabase.co/functions/v1';
@@ -241,9 +245,9 @@
     // for verify_jwt=false functions.
     const ANON_KEY = 'sb_publishable_bpV29JM65vrJI1pgUVlKdg_5ZDisV3Y';
     const POLL_MS = 2500;
-    const POLL_TIMEOUT_MS = 180000; // give up after 3 min
+    const POLL_TIMEOUT_MS = 240000; // give up after 4 min
 
-    // App origin for the post-demo CTA — same dev-rewrite rule as the
+    // App origin for the post-demo CTAs — same dev-rewrite rule as the
     // page-load rewriter above.
     const onDevPort = location.port === '5188' || location.port === '5187';
     const appOrigin =
@@ -260,6 +264,7 @@
 
     let pollTimer = null;
     let pollStartedAt = 0;
+    let currentUrl = ''; // kept so the audit's "fix it" CTA can re-request
 
     function panel(headLabel, dotClass, bodyHtml) {
       livePanel.hidden = false;
@@ -271,15 +276,17 @@
         '<div class="demo-live-body">' + bodyHtml + '</div>';
     }
 
-    function showRunning(progressText, keyword) {
+    function showRunning(kind, progressText, keyword) {
+      const head =
+        kind === 'audit' ? 'Checking your AI visibility' : 'Watching Bylined work';
       panel(
-        'Watching Bylined work',
+        head,
         '',
         '<div class="demo-progress">' +
           '<span class="demo-spinner"></span>' +
           '<span>' + esc(progressText || 'Starting…') + '</span>' +
         '</div>' +
-        (keyword
+        (keyword && kind !== 'audit'
           ? '<div class="demo-progress-sub">Topic picked for your site: <strong>' +
             esc(keyword) + '</strong></div>'
           : '')
@@ -297,7 +304,74 @@
       );
     }
 
-    function showResult(r) {
+    // ── Audit result — the "gap" half ──────────────────────────────
+    function showAuditResult(r) {
+      const total = r.total_runs || 0;
+      const named = r.mention_count || 0;
+      const gap = named === 0;
+      const headlineClass = gap ? 'is-gap' : '';
+
+      const competitors = (r.competitors || [])
+        .slice(0, 6)
+        .map(
+          (c) =>
+            '<span class="demo-comp-chip">' + esc(c.name) +
+            ' <b>&times;' + (c.count || 0) + '</b></span>'
+        )
+        .join('');
+
+      const ts = r.transcript_sample || {};
+      const transcript = ts.question
+        ? '<div class="demo-transcript">' +
+            '<div class="demo-transcript-q">We asked an AI: <em>&ldquo;' +
+            esc(ts.question) + '&rdquo;</em></div>' +
+            '<div class="demo-transcript-a">' + esc(ts.answer) + '</div>' +
+            '<div class="demo-transcript-verdict ' +
+            (ts.brand_mentioned ? 'is-named' : 'is-missing') + '">' +
+            (ts.brand_mentioned
+              ? '✓ ' + esc(r.brand_name) + ' was named'
+              : '✗ ' + esc(r.brand_name) + ' was not named') +
+            '</div>' +
+          '</div>'
+        : '';
+
+      panel(
+        'Your AI visibility — checked',
+        'is-done',
+        (r.category
+          ? '<div class="demo-result-kw">' + esc(r.brand_name) + ' · ' +
+            esc(r.category) + '</div>'
+          : '') +
+          '<div class="demo-audit-headline ' + headlineClass + '">' +
+            esc(r.brand_name) + ' was named in <b>' + named + ' of ' + total +
+            '</b> AI answers' +
+          '</div>' +
+          '<div class="demo-audit-sub">' +
+            (gap
+              ? 'We asked an AI ' + (total / 3 | 0) +
+                ' questions your customers would ask — three times each. ' +
+                'You didn’t come up. Here’s who did.'
+              : 'We asked an AI the questions your customers ask. You came up ' +
+                'some of the time — but there’s room to own the answer.') +
+          '</div>' +
+          (competitors
+            ? '<div class="demo-receipts-h">Named instead of you</div>' +
+              '<div class="demo-comp-chips">' + competitors + '</div>'
+            : '') +
+          transcript +
+          '<div class="demo-result-cta">' +
+            '<button type="button" class="btn btn-primary btn-lg" ' +
+            'data-demo-action="fix-it">' +
+            'Watch Bylined write the article that fixes this ' +
+            '<svg class="icon"><use href="#i-arrow-right"/></svg></button>' +
+            '<span class="demo-cta-note">A sourced, verified article on exactly ' +
+            'this topic — the kind AI engines cite.</span>' +
+          '</div>'
+      );
+    }
+
+    // ── Article result — the "fix" half ────────────────────────────
+    function showArticleResult(r) {
       const pct = Math.round((r.pass_rate || 0) * 100);
       const receipts = (r.receipts || [])
         .map(
@@ -338,11 +412,11 @@
       if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
     }
 
-    async function poll(demoId) {
+    async function poll(demoId, kind) {
       if (Date.now() - pollStartedAt > POLL_TIMEOUT_MS) {
         showError(
-          "This is taking longer than usual — the demo worker may be busy. " +
-          "Sign up free and your first article runs on a priority queue."
+          'This is taking longer than usual — the worker may be busy. ' +
+          'Sign up free and your first article runs on a priority queue.'
         );
         stopPolling();
         return;
@@ -355,67 +429,94 @@
         });
         const data = await res.json();
         if (!res.ok || !data.ok) {
-          showError(data.error || 'Lost track of the demo. Try again.');
+          showError(data.error || 'Lost track of the run. Try again.');
           stopPolling();
           return;
         }
         if (data.status === 'completed' && data.result) {
-          showResult(data.result);
+          // Branch on what actually came back, not what we think we asked.
+          if (data.result.kind === 'audit') showAuditResult(data.result);
+          else showArticleResult(data.result);
           stopPolling();
           return;
         }
         if (data.status === 'failed') {
           showError(
-            (data.error || 'The demo run hit an error.') +
-              ' You can try a different page, or start free.'
+            (data.error || 'The run hit an error.') +
+              ' Try a different page, or start free.'
           );
           stopPolling();
           return;
         }
         // queued | running — keep the panel alive.
-        showRunning(data.progress, data.keyword);
-        pollTimer = setTimeout(() => poll(demoId), POLL_MS);
+        showRunning(kind, data.progress, data.keyword);
+        pollTimer = setTimeout(() => poll(demoId, kind), POLL_MS);
       } catch (e) {
         showError('Network hiccup talking to Bylined. Try again in a moment.');
         stopPolling();
       }
     }
 
+    // Kick off either phase. `kind` is 'audit' or 'article'.
+    async function requestDemo(url, kind) {
+      stopPolling();
+      showRunning(
+        kind,
+        kind === 'audit'
+          ? 'Sending your site to Bylined…'
+          : 'Queuing your article…'
+      );
+      try {
+        const res = await fetch(SUPABASE_FN + '/request-demo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+          body: JSON.stringify({ url, kind }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showError(data.error || 'Could not start the run. Try again.');
+          return;
+        }
+        pollStartedAt = Date.now();
+        showRunning(
+          kind,
+          kind === 'audit'
+            ? 'Queued — about to read your site…'
+            : 'Queued — Bylined is about to research your article…'
+        );
+        poll(data.demo_id, kind);
+      } catch (e) {
+        showError('Network hiccup reaching Bylined. Try again in a moment.');
+      }
+    }
+
+    // Phase 1: the hero form runs the audit.
     demoForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      stopPolling();
       const raw = (urlInput.value || '').trim();
       if (!raw) {
         urlInput.focus();
         return;
       }
-      const url = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+      currentUrl = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
 
       submitBtn.disabled = true;
       const submitLabel = submitBtn.innerHTML;
-      submitBtn.textContent = 'Starting…';
-      showRunning('Sending your site to Bylined…');
-
+      submitBtn.textContent = 'Checking…';
       try {
-        const res = await fetch(SUPABASE_FN + '/request-demo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
-          body: JSON.stringify({ url }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
-          showError(data.error || 'Could not start the demo. Try again.');
-          return;
-        }
-        pollStartedAt = Date.now();
-        showRunning('Queued — Bylined is about to read your site…');
-        poll(data.demo_id);
-      } catch (e) {
-        showError('Network hiccup reaching Bylined. Try again in a moment.');
+        await requestDemo(currentUrl, 'audit');
       } finally {
         submitBtn.disabled = false;
         submitBtn.innerHTML = submitLabel;
       }
+    });
+
+    // Phase 2: the audit result's CTA runs the full article generation
+    // for the same site. Delegated so it survives the panel re-render.
+    livePanel.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-demo-action="fix-it"]');
+      if (!trigger || !currentUrl) return;
+      requestDemo(currentUrl, 'article');
     });
   }
 })();
