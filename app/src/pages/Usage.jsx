@@ -270,10 +270,10 @@ export default function Usage() {
                                 rel="noreferrer noopener"
                                 style={{ color: 'var(--accent-text)', textDecoration: 'underline', textUnderlineOffset: 2 }}
                               >
-                                View live ↗
+                                {a.status === 'published' ? 'View live ↗' : 'View draft ↗'}
                               </a>
                             ) : (
-                              <span style={{ color: 'var(--fg-subtle)' }}>Draft</span>
+                              <span style={{ color: 'var(--fg-subtle)' }}>—</span>
                             )}
                           </Td>
                         </tr>
