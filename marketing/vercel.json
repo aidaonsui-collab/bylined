@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": null,
+  "buildCommand": "node build.js",
   "outputDirectory": ".",
   "cleanUrls": true,
   "headers": [
@@ -12,6 +12,10 @@
     {
       "source": "/(styles\\.css|app\\.js)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }]
+    },
+    {
+      "source": "/blog/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=300, s-maxage=300" }]
     }
   ]
 }

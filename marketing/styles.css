@@ -1268,3 +1268,76 @@ a { color: inherit; text-decoration: none; }
 .legal-prose a:hover {
   text-decoration: none;
 }
+
+/* ─── Blog (Bylined-hosted) ─────────────────────────────────────── */
+.blog-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 40px;
+}
+.blog-card {
+  display: block;
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+  transition: border-color 120ms, transform 120ms;
+}
+.blog-card:hover {
+  border-color: var(--accent-ring);
+  transform: translateY(-1px);
+}
+.blog-card-date {
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.blog-card-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.blog-card-excerpt {
+  font-size: 14.5px;
+  color: var(--fg-subtle);
+  line-height: 1.55;
+  margin: 0 0 12px;
+}
+.blog-card-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Single post body — extends .legal-prose with article-specific styling
+   so receipts (sup citations + sources list) render legibly. */
+.blog-post-body sup a {
+  color: var(--accent-text);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0 2px;
+}
+.blog-post-body sup a:hover {
+  text-decoration: underline;
+}
+.blog-post-body ol li {
+  font-size: 13.5px;
+  color: var(--fg-subtle);
+  line-height: 1.55;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+.blog-post-body ol li a {
+  color: var(--accent-text);
+}

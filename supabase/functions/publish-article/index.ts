@@ -306,6 +306,100 @@ async function publishWebflow(
   };
 }
 
+// ─── Bylined-hosted blog publisher ─────────────────────────────────────
+//
+// Writes a row to public.blog_posts (anon-readable when status='published'),
+// then fires the marketing site's Vercel Deploy Hook to trigger a rebuild.
+// The marketing build script reads blog_posts and emits static HTML at
+// /blog and /blog/{slug}.
+//
+// Config: empty — there's only ever one hosted destination
+// (BYLINED_HOSTED_DEPLOY_HOOK env on the edge function). The user does
+// have to create a `sites` row with cms_type='bylined_hosted' so the rest
+// of the publish flow has somewhere to attach (site_id is required on
+// articles). We accept any non-null cms_config.
+
+const BYLINED_HOSTED_DEPLOY_HOOK = Deno.env.get(
+  "BYLINED_HOSTED_DEPLOY_HOOK"
+);
+const BYLINED_HOSTED_PUBLIC_BASE =
+  Deno.env.get("BYLINED_HOSTED_PUBLIC_BASE") ?? "https://getbylined.com";
+
+interface BylinedHostedResult {
+  id: string;
+  url: string;
+  edit_url: string;
+  status: string;
+}
+
+async function publishBylinedHosted(
+  userClient: ReturnType<typeof createClient>,
+  args: {
+    user_id: string;
+    article_id: string;
+    site_id: string;
+    title: string;
+    meta_description: string;
+    body_html: string;
+    sources_html: string;
+    slug: string;
+    live: boolean;
+  }
+): Promise<BylinedHostedResult> {
+  const status = args.live ? "published" : "draft";
+  const publishedAt = args.live ? new Date().toISOString() : null;
+
+  // Upsert by (article_id, site_id) — re-publish updates the row, doesn't
+  // create a duplicate. RLS owner_full_access gates the write.
+  const { data, error } = await userClient
+    .from("blog_posts")
+    .upsert(
+      {
+        user_id: args.user_id,
+        article_id: args.article_id,
+        site_id: args.site_id,
+        slug: args.slug,
+        title: args.title,
+        meta_description: args.meta_description,
+        body_html: args.body_html,
+        sources_html: args.sources_html,
+        status,
+        published_at: publishedAt,
+      },
+      { onConflict: "article_id,site_id" }
+    )
+    .select("id")
+    .single();
+  if (error || !data) {
+    throw new Error(`blog_posts upsert failed: ${error?.message ?? "no row"}`);
+  }
+
+  // Fire the rebuild hook only for live publishes — drafts shouldn't
+  // burn a Vercel build. If the hook isn't configured (local dev), no-op.
+  if (args.live && BYLINED_HOSTED_DEPLOY_HOOK) {
+    try {
+      await fetch(BYLINED_HOSTED_DEPLOY_HOOK, {
+        method: "POST",
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (e) {
+      // Don't fail the publish if the rebuild trigger flaps — the row
+      // is committed and the next deploy will pick it up. Log so we
+      // can notice in Sentry.
+      console.error("BYLINED_HOSTED_DEPLOY_HOOK failed:", e);
+    }
+  }
+
+  const base = BYLINED_HOSTED_PUBLIC_BASE.replace(/\/+$/, "");
+  const url = `${base}/blog/${args.slug}`;
+  return {
+    id: data.id as string,
+    url,
+    edit_url: url, // No separate admin URL — editing happens in Bylined itself
+    status: args.live ? "publish" : "draft",
+  };
+}
+
 // ─── Handler ───────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -415,6 +509,19 @@ Deno.serve(async (req) => {
         slug,
         live,
         existing_post_id: existingPostId,
+      });
+      result = { id: r.id, url: r.url, edit_url: r.edit_url, status: r.status };
+    } else if (site.cms_type === "bylined_hosted") {
+      const r = await publishBylinedHosted(userClient, {
+        user_id: user.id,
+        article_id: article.id,
+        site_id: site.id,
+        title: article.title,
+        meta_description: article.meta_description ?? "",
+        body_html: bodyHtml,
+        sources_html: sourcesHtml,
+        slug,
+        live,
       });
       result = { id: r.id, url: r.url, edit_url: r.edit_url, status: r.status };
     } else {
