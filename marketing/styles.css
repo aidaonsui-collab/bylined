@@ -956,6 +956,21 @@ a { color: inherit; text-decoration: none; }
   .pr-grid { grid-template-columns: 1fr; }
   .footer-cols { grid-template-columns: 1fr 1fr; }
   .pp-compare { font-size: 12px; }
+
+  /* Hero chrome strip: SERP/AEO scores get cramped on mobile and push
+     the Publish button off-screen. Drop them on phones — the draft tab
+     + status chip + Publish CTA is the punchline. Tighten paddings and
+     gaps to give the remaining items breathing room. */
+  .hero-demo-chrome { padding: 0 10px; }
+  .hero-chrome-r { gap: 6px; }
+  .hero-chrome-r .score { display: none; }
+  .hero-tab { padding: 0 8px; }
+  .hero-publish { padding: 0 8px; font-size: 11px; }
+
+  /* Article body padding scales down too — 38px×44px is huge on a
+     phone and steals reading width from the prose. */
+  .hero-demo-article { padding: 24px 20px; }
+  .hero-demo-receipts { padding: 12px; max-height: none; }
 }
 
 /* ─── Live demo hook ─────────────────────────────────────────────────
