@@ -6,7 +6,7 @@
 // the email of record is a Supabase Auth flow we haven't wired, and
 // for billing it's managed through the Stripe portal.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
@@ -25,7 +25,17 @@ export default function Settings() {
   const { user, profile, signOut, updateProfile, updatePassword } = useAuth();
   const toast = useToast();
 
+  // The profile loads async in the auth store — it can still be null on
+  // first render. Seed the field once it arrives (and only while the
+  // user hasn't started typing, so we don't clobber an in-progress edit).
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
+  const [nameTouched, setNameTouched] = useState(false);
+  useEffect(() => {
+    if (!nameTouched && profile?.full_name) {
+      setFullName(profile.full_name);
+    }
+  }, [profile?.full_name, nameTouched]);
+
   const [savingName, setSavingName] = useState(false);
 
   const [pw, setPw] = useState('');
@@ -115,7 +125,10 @@ export default function Settings() {
                 className="input"
                 type="text"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                onChange={(e) => {
+                  setNameTouched(true);
+                  setFullName(e.target.value);
+                }}
                 placeholder="Your name"
                 maxLength={80}
                 disabled={savingName}
