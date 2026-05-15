@@ -1,0 +1,54 @@
+# CI gate — runs on every push + PR. Keeps the two Node projects honest:
+# the engine must typecheck (it's what the worker boots from), the app
+# must build (we don't want a green merge that breaks the Vercel deploy).
+#
+# Marketing is static HTML — no build, no test. If you want HTML lint
+# later, drop in a job that runs `npx htmlhint marketing/*.html`.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  engine:
+    name: engine · typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+
+  app:
+    name: app · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # Vite needs the Supabase + Stripe public envs at build time. CI
+      # builds with safe placeholders just to prove compilation; the
+      # real values get injected by Vercel at deploy time.
+      VITE_SUPABASE_URL: https://placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: placeholder
+      VITE_STRIPE_PUBLISHABLE_KEY: pk_test_placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run build

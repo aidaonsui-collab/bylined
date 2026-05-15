@@ -19,6 +19,20 @@
 // we mark it `failed` with a 'worker_shutdown' note.
 
 import "dotenv/config";
+// Sentry first — must initialize before anything we want it to wrap.
+import * as Sentry from "@sentry/node";
+
+const SENTRY_DSN = process.env.SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: process.env.SENTRY_ENV ?? "production",
+    // Capture every uncaught error from the worker; tracing is overkill
+    // for an LLM-bound process where one job = many minutes.
+    tracesSampleRate: 0,
+  });
+}
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generate } from "./orchestrator.js";
 import { inferKeywordFromSite } from "./demo.js";
@@ -195,6 +209,10 @@ async function runJob(job: Job): Promise<void> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[worker:${job.id.slice(0, 8)}] ✗ failed:`, msg);
+    Sentry.captureException(e, {
+      tags: { worker_path: "job" },
+      contexts: { job: { id: job.id, keyword: job.keyword } },
+    });
     await failJob(job.id, msg);
   } finally {
     clearRunContext();
@@ -294,6 +312,10 @@ async function runDemoAudit(demo: DemoRequest): Promise<void> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`${tag} ✗ failed:`, msg);
+    Sentry.captureException(e, {
+      tags: { worker_path: "audit" },
+      contexts: { demo: { id: demo.id, url: demo.url } },
+    });
     await failDemo(demo.id, msg);
   } finally {
     clearRunContext();
@@ -367,6 +389,10 @@ async function runDemoArticle(demo: DemoRequest): Promise<void> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`${tag} ✗ failed:`, msg);
+    Sentry.captureException(e, {
+      tags: { worker_path: "demo_article" },
+      contexts: { demo: { id: demo.id, url: demo.url } },
+    });
     await failDemo(demo.id, msg);
   } finally {
     clearRunContext();
@@ -418,7 +444,10 @@ process.on("SIGINT", () => {
   if (forceExitTimer.unref) forceExitTimer.unref();
 });
 
-loop().catch((e) => {
+loop().catch(async (e) => {
   console.error("[worker] fatal:", e instanceof Error ? e.message : e);
+  Sentry.captureException(e, { tags: { worker_path: "fatal" } });
+  // Give Sentry a moment to flush before we die.
+  if (SENTRY_DSN) await Sentry.close(2000);
   process.exit(1);
 });

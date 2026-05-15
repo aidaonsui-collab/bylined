@@ -4,19 +4,30 @@
 (function () {
   'use strict';
 
-  // ─── Dev URL rewriter ──────────────────────────────────────────────
-  // In production, marketing + app sit on the same host, so /sign-up,
-  // /sign-in, /app/* all resolve cleanly. In dev they're on different
-  // ports (marketing :5188, app Vite :5189) — Python's http.server has
-  // no proxy, so plain anchors 404. We detect the dev host by port and
-  // rewrite app-bound links to the Vite origin.
+  // ─── App-origin rewriter ───────────────────────────────────────────
+  // The marketing site and the React app are deployed separately — they
+  // live on different origins. Every /sign-up, /sign-in, /app/*,
+  // /auth/* link in this HTML has to be rewritten to the app's host.
   //
-  // Set window.BYLINED_APP_ORIGIN before this script loads to override
-  // (e.g. for a staging environment).
+  // Dev:  marketing :5188, app Vite :5189.
+  // Prod: marketing on one *.vercel.app, app on another (or a future
+  //       app.bylined.so once a domain is wired).
+  //
+  // BYLINED_APP_ORIGIN can be set inline on the page (e.g. a per-env
+  // <script> baked into index.html) to override either default.
+  //
+  // *** AFTER FIRST PROD DEPLOY: update APP_ORIGIN_PROD below with the
+  // ***  actual Vercel URL of the app project.
+  const APP_ORIGIN_DEV = 'http://localhost:5189';
+  const APP_ORIGIN_PROD = 'https://bylined-app.vercel.app'; // placeholder
   (() => {
+    const host = location.hostname;
     const onDevPort = location.port === '5188' || location.port === '5187';
-    const origin = window.BYLINED_APP_ORIGIN
-      ?? (onDevPort ? 'http://localhost:5189' : null);
+    const onDevHost = host === 'localhost' || host === '127.0.0.1';
+    const origin =
+      window.BYLINED_APP_ORIGIN
+      ?? (onDevHost && onDevPort ? APP_ORIGIN_DEV : null)
+      ?? (onDevHost ? null : APP_ORIGIN_PROD);
     if (!origin) return;
     // Anything that should hop to the React app: auth flows + /app/*.
     const isAppPath = (href) =>
@@ -247,11 +258,18 @@
     const POLL_MS = 2500;
     const POLL_TIMEOUT_MS = 240000; // give up after 4 min
 
-    // App origin for the post-demo CTAs — same dev-rewrite rule as the
-    // page-load rewriter above.
-    const onDevPort = location.port === '5188' || location.port === '5187';
-    const appOrigin =
-      window.BYLINED_APP_ORIGIN ?? (onDevPort ? 'http://localhost:5189' : '');
+    // App origin for the post-demo CTAs — same rule as the page-load
+    // rewriter above; APP_ORIGIN_PROD is the placeholder to fill in
+    // after the first prod app deploy.
+    const _host = location.hostname;
+    const _onDevPort = location.port === '5188' || location.port === '5187';
+    const _onDevHost = _host === 'localhost' || _host === '127.0.0.1';
+    const appOrigin = (() => {
+      if (window.BYLINED_APP_ORIGIN) return window.BYLINED_APP_ORIGIN;
+      if (_onDevHost && _onDevPort) return APP_ORIGIN_DEV;
+      if (_onDevHost) return ''; // dev on some other port — leave links relative
+      return APP_ORIGIN_PROD;
+    })();
 
     const urlInput = document.getElementById('demo-url');
     const submitBtn = document.getElementById('demo-submit');

@@ -41,6 +41,11 @@ pnpm-debug.log*
 .next/
 .turbo/
 
+# Deploy tooling (per-machine state)
+.vercel/
+.railway/
+.fly/
+
 # Test / coverage
 coverage/
 .nyc_output/

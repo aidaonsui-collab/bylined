@@ -12,10 +12,12 @@
     "voice": "tsx src/voice-cli.ts",
     "costs": "tsx src/costs-cli.ts",
     "worker": "tsx src/worker.ts",
+    "start": "tsx src/worker.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
   "dependencies": {
+    "@sentry/node": "^8.45.0",
     "@supabase/supabase-js": "^2.45.4",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.7",
