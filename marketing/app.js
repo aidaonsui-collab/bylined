@@ -229,4 +229,193 @@
     buttons.forEach((b) => b.addEventListener('click', () => setPeriod(b.dataset.period)));
     setPeriod('monthly');
   }
+
+  // ─── Live demo hook ────────────────────────────────────────────────
+  // Hero URL input → request-demo edge function → poll demo-status →
+  // render the "watching it work" panel and the finished article. See
+  // supabase/functions/{request-demo,demo-status}.
+  const demoForm = document.getElementById('demo-form');
+  if (demoForm) {
+    const SUPABASE_FN = 'https://boatyhrefcilcxepnbbf.supabase.co/functions/v1';
+    // Anon publishable key — public by design; the gateway wants it even
+    // for verify_jwt=false functions.
+    const ANON_KEY = 'sb_publishable_bpV29JM65vrJI1pgUVlKdg_5ZDisV3Y';
+    const POLL_MS = 2500;
+    const POLL_TIMEOUT_MS = 180000; // give up after 3 min
+
+    // App origin for the post-demo CTA — same dev-rewrite rule as the
+    // page-load rewriter above.
+    const onDevPort = location.port === '5188' || location.port === '5187';
+    const appOrigin =
+      window.BYLINED_APP_ORIGIN ?? (onDevPort ? 'http://localhost:5189' : '');
+
+    const urlInput = document.getElementById('demo-url');
+    const submitBtn = document.getElementById('demo-submit');
+    const livePanel = document.getElementById('demo-live');
+
+    const esc = (s) =>
+      String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[c]));
+
+    let pollTimer = null;
+    let pollStartedAt = 0;
+
+    function panel(headLabel, dotClass, bodyHtml) {
+      livePanel.hidden = false;
+      livePanel.innerHTML =
+        '<div class="demo-live-head">' +
+        '<span class="demo-live-dot ' + dotClass + '"></span>' +
+        '<span>' + esc(headLabel) + '</span>' +
+        '</div>' +
+        '<div class="demo-live-body">' + bodyHtml + '</div>';
+    }
+
+    function showRunning(progressText, keyword) {
+      panel(
+        'Watching Bylined work',
+        '',
+        '<div class="demo-progress">' +
+          '<span class="demo-spinner"></span>' +
+          '<span>' + esc(progressText || 'Starting…') + '</span>' +
+        '</div>' +
+        (keyword
+          ? '<div class="demo-progress-sub">Topic picked for your site: <strong>' +
+            esc(keyword) + '</strong></div>'
+          : '')
+      );
+    }
+
+    function showError(message) {
+      panel(
+        'Demo',
+        'is-error',
+        '<div class="demo-error">' + esc(message) +
+          '</div><div class="demo-result-cta" style="margin-top:14px">' +
+          '<a class="btn btn-primary" href="' + appOrigin + '/sign-up">' +
+          'Start free instead</a></div>'
+      );
+    }
+
+    function showResult(r) {
+      const pct = Math.round((r.pass_rate || 0) * 100);
+      const receipts = (r.receipts || [])
+        .map(
+          (rc) =>
+            '<div class="demo-receipt">' +
+            '<div class="demo-receipt-q">&ldquo;' + esc(rc.passage) + '&rdquo;</div>' +
+            '<div class="demo-receipt-src">' + esc(rc.source_url) + '</div>' +
+            '</div>'
+        )
+        .join('');
+
+      panel(
+        'Your article — written, sourced, verified',
+        'is-done',
+        (r.keyword ? '<div class="demo-result-kw">Topic: ' + esc(r.keyword) + '</div>' : '') +
+          '<h3 class="demo-result-title">' + esc(r.title) + '</h3>' +
+          '<div class="demo-result-excerpt">' + esc(r.body_excerpt) +
+          '…</div><div class="demo-result-fade"></div>' +
+          '<div class="demo-stat-row">' +
+            '<div class="demo-stat"><b>' + (r.body_chars ? r.body_chars.toLocaleString() : '—') +
+            '</b><span>characters written</span></div>' +
+            '<div class="demo-stat"><b>' + (r.receipts_verified ?? 0) + '/' +
+            (r.receipts_total ?? 0) + '</b><span>claims verified</span></div>' +
+            '<div class="demo-stat"><b>' + pct + '%</b><span>citation pass rate</span></div>' +
+          '</div>' +
+          (receipts
+            ? '<div class="demo-receipts-h">Source receipts</div>' + receipts
+            : '') +
+          '<div class="demo-result-cta">' +
+            '<a class="btn btn-primary btn-lg" href="' + appOrigin + '/sign-up">' +
+            'Sign up free to publish this <svg class="icon"><use href="#i-arrow-right"/></svg></a>' +
+            '<span class="demo-cta-note">Your draft is ready — publishing to your CMS takes one click.</span>' +
+          '</div>'
+      );
+    }
+
+    function stopPolling() {
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    }
+
+    async function poll(demoId) {
+      if (Date.now() - pollStartedAt > POLL_TIMEOUT_MS) {
+        showError(
+          "This is taking longer than usual — the demo worker may be busy. " +
+          "Sign up free and your first article runs on a priority queue."
+        );
+        stopPolling();
+        return;
+      }
+      try {
+        const res = await fetch(SUPABASE_FN + '/demo-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+          body: JSON.stringify({ demo_id: demoId }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showError(data.error || 'Lost track of the demo. Try again.');
+          stopPolling();
+          return;
+        }
+        if (data.status === 'completed' && data.result) {
+          showResult(data.result);
+          stopPolling();
+          return;
+        }
+        if (data.status === 'failed') {
+          showError(
+            (data.error || 'The demo run hit an error.') +
+              ' You can try a different page, or start free.'
+          );
+          stopPolling();
+          return;
+        }
+        // queued | running — keep the panel alive.
+        showRunning(data.progress, data.keyword);
+        pollTimer = setTimeout(() => poll(demoId), POLL_MS);
+      } catch (e) {
+        showError('Network hiccup talking to Bylined. Try again in a moment.');
+        stopPolling();
+      }
+    }
+
+    demoForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      stopPolling();
+      const raw = (urlInput.value || '').trim();
+      if (!raw) {
+        urlInput.focus();
+        return;
+      }
+      const url = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+
+      submitBtn.disabled = true;
+      const submitLabel = submitBtn.innerHTML;
+      submitBtn.textContent = 'Starting…';
+      showRunning('Sending your site to Bylined…');
+
+      try {
+        const res = await fetch(SUPABASE_FN + '/request-demo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+          body: JSON.stringify({ url }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showError(data.error || 'Could not start the demo. Try again.');
+          return;
+        }
+        pollStartedAt = Date.now();
+        showRunning('Queued — Bylined is about to read your site…');
+        poll(data.demo_id);
+      } catch (e) {
+        showError('Network hiccup reaching Bylined. Try again in a moment.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = submitLabel;
+      }
+    });
+  }
 })();

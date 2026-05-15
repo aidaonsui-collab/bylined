@@ -120,35 +120,42 @@
   <header class="mkt-hero">
     <div class="mkt-container">
       <div class="hero-flag">
-        <span class="hero-flag-dot"></span> New · every article ships with sources
+        <span class="hero-flag-dot"></span> New · watch it write your first article, live
       </div>
       <h1 class="hero-h1 serif">
-        Get traffic from Google and ChatGPT, <span class="hero-h1-em">with receipts.<svg class="hero-squiggle" viewBox="0 0 320 14" preserveAspectRatio="none" aria-hidden="true"><path d="M2 8 Q 30 1, 60 7 Q 90 13, 120 6 Q 150 1, 180 8 Q 210 13, 240 6 Q 270 1, 318 8"/></svg></span>
+        Get found by ChatGPT, Perplexity, and Google — <span class="hero-h1-em">with receipts.<svg class="hero-squiggle" viewBox="0 0 320 14" preserveAspectRatio="none" aria-hidden="true"><path d="M2 8 Q 30 1, 60 7 Q 90 13, 120 6 Q 150 1, 180 8 Q 210 13, 240 6 Q 270 1, 318 8"/></svg></span>
       </h1>
       <p class="hero-lede">
-        Bylined writes, sources, and posts SEO articles that rank on Google and ChatGPT — by morning, every morning.
+        AI search is becoming how people find businesses. Bylined writes the sourced, verified articles that get you cited — and posts them to your site, every morning.
       </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href="/sign-up">Start free for 14 days <svg class="icon"><use href="#i-arrow-right"/></svg></a>
-        <a class="btn btn-lg btn-ghost" href="#hero-demo">See it run <svg class="icon icon-sm"><use href="#i-play"/></svg></a>
-      </div>
-      <div class="hero-cta-fine">
-        <svg class="icon icon-xs"><use href="#i-check"/></svg> $39/mo flat
-        <span class="dot-sep"></span>
-        <svg class="icon icon-xs"><use href="#i-check"/></svg> First article in 6 minutes
-        <span class="dot-sep"></span>
-        <svg class="icon icon-xs"><use href="#i-check"/></svg> No card, cancel any time
-      </div>
-      <!-- TODO: replace operator count with real beta number before launch -->
-      <div class="hero-social-proof">
-        <div class="hero-avatars">
-          <span class="hero-avatar" style="background: linear-gradient(135deg, #8B7B4E, #5BD898)">M</span>
-          <span class="hero-avatar" style="background: linear-gradient(135deg, #5BD898, #6DA8FF)">D</span>
-          <span class="hero-avatar" style="background: linear-gradient(135deg, #6DA8FF, #B79CFF)">L</span>
-          <span class="hero-avatar is-more">+</span>
+
+      <!-- ─── Live demo hook: paste URL → watch it write ─── -->
+      <form class="demo-form" id="demo-form" autocomplete="off">
+        <div class="demo-input-wrap">
+          <span class="demo-input-prefix">https://</span>
+          <input
+            class="demo-input"
+            id="demo-url"
+            type="text"
+            inputmode="url"
+            placeholder="yourwebsite.com"
+            aria-label="Your website URL"
+          />
         </div>
-        <span class="hero-rating"><span class="stars">★★★★★</span> <b>4.9</b> · Loved by 200+ operators</span>
+        <button class="btn btn-primary btn-lg" type="submit" id="demo-submit">
+          Watch Bylined write your first article <svg class="icon"><use href="#i-arrow-right"/></svg>
+        </button>
+      </form>
+      <div class="hero-cta-fine">
+        <svg class="icon icon-xs"><use href="#i-check"/></svg> Real article, real sources
+        <span class="dot-sep"></span>
+        <svg class="icon icon-xs"><use href="#i-check"/></svg> No signup to watch
+        <span class="dot-sep"></span>
+        <svg class="icon icon-xs"><use href="#i-check"/></svg> Or <a href="/sign-up">start free</a> — $39/mo flat, no card
       </div>
+
+      <!-- Populated by app.js once a demo is requested. -->
+      <div class="demo-live" id="demo-live" hidden></div>
     </div>
 
     <div class="mkt-container mkt-container-wide">

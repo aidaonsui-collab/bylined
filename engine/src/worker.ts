@@ -21,6 +21,7 @@
 import "dotenv/config";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generate } from "./orchestrator.js";
+import { inferKeywordFromSite } from "./demo.js";
 import { startRun, setRunContext, clearRunContext } from "./cost.js";
 import type { Article } from "./types.js";
 
@@ -50,6 +51,12 @@ interface Job {
   site_id: string | null;
   voice_id: string | null;
   keyword: string;
+  status: string;
+}
+
+interface DemoRequest {
+  id: string;
+  url: string;
   status: string;
 }
 
@@ -192,17 +199,149 @@ async function runJob(job: Job): Promise<void> {
   }
 }
 
+// ─── Demo requests ─────────────────────────────────────────────────
+// Unauthenticated "watch it write your first article" runs from the
+// marketing site. Same engine, but: no user, no quota, no article row
+// — we write a trimmed result excerpt straight onto the demo_requests
+// row for the landing page to poll. Real jobs always take priority.
+
+async function claimNextDemo(): Promise<DemoRequest | null> {
+  const { data, error } = await admin.rpc("claim_next_demo");
+  if (error) {
+    console.error("[worker] demo claim error:", error.message);
+    return null;
+  }
+  if (!data) return null;
+  const row = (Array.isArray(data) ? data[0] : data) as Partial<DemoRequest> | null;
+  if (!row || row.id == null) return null;
+  return row as DemoRequest;
+}
+
+async function setDemoProgress(demoId: string, progress: string): Promise<void> {
+  // Fire-and-forget — a missed progress line just means the landing
+  // page shows a slightly stale step. Not worth failing the run over.
+  await admin
+    .from("demo_requests")
+    .update({ progress })
+    .eq("id", demoId)
+    .then(undefined, () => {});
+}
+
+// Map the orchestrator's internal log lines to friendly progress text
+// for the landing page. Anything unmapped is ignored (stays on the
+// previous step).
+function friendlyProgress(logLine: string): string | null {
+  if (logLine.startsWith("searching SERP")) return "Searching the web for sources…";
+  if (/^fetched \d+\/\d+ pages/.test(logLine)) return "Reading the top sources…";
+  if (/^extracted \d+ facts/.test(logLine)) return "Extracting verifiable facts…";
+  if (logLine.startsWith("generating article")) return "Writing your article…";
+  if (logLine.startsWith("running validation")) return "Verifying every claim…";
+  if (/^triggered \d+ Wayback/.test(logLine)) return "Archiving the sources…";
+  return null;
+}
+
+async function failDemo(demoId: string, message: string): Promise<void> {
+  const { error } = await admin
+    .from("demo_requests")
+    .update({
+      status: "failed",
+      error: message.slice(0, 300),
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", demoId);
+  if (error) console.error("[worker] failDemo update error:", error.message);
+}
+
+async function runDemo(demo: DemoRequest): Promise<void> {
+  const tag = `[worker:demo:${demo.id.slice(0, 8)}]`;
+  const runId = startRun(`demo-${demo.id.slice(0, 8)}`);
+  // Demos have no user — leave runContext empty so cost events stay
+  // local-JSONL only (writeToSupabase skips events without a user_id).
+  clearRunContext();
+  console.log(`${tag} claimed: url="${demo.url}" run=${runId}`);
+
+  try {
+    // 1. Crawl the site and infer one keyword to generate against.
+    await setDemoProgress(demo.id, "Reading your site…");
+    const { keyword, site_summary } = await inferKeywordFromSite(demo.url);
+    console.log(`${tag} inferred keyword: "${keyword}"`);
+    await admin
+      .from("demo_requests")
+      .update({ keyword, progress: `Researching “${keyword}”…` })
+      .eq("id", demo.id);
+
+    // 2. Run the real pipeline. The log callback doubles as a progress
+    //    feed for the landing page.
+    const article: Article = await generate({
+      keyword,
+      log: (msg: string) => {
+        console.log(`${tag} ${msg}`);
+        const friendly = friendlyProgress(msg);
+        if (friendly) void setDemoProgress(demo.id, friendly);
+      },
+    });
+
+    // 3. Trim to a result excerpt — an anonymous visitor sees enough to
+    //    be convinced, not the full 10k-char body.
+    const verifiedReceipts = (article.receipts ?? [])
+      .filter((r) => r.verified)
+      .slice(0, 6)
+      .map((r) => ({
+        passage: r.passage,
+        source_url: r.source_url,
+      }));
+    const result = {
+      keyword,
+      site_summary,
+      title: article.title,
+      meta_description: article.meta_description,
+      body_excerpt: article.body_markdown.slice(0, 900),
+      body_chars: article.body_markdown.length,
+      receipts: verifiedReceipts,
+      receipts_verified: (article.receipts ?? []).filter((r) => r.verified).length,
+      receipts_total: (article.receipts ?? []).length,
+      pass_rate: article.pass_rate,
+    };
+
+    const { error: doneErr } = await admin
+      .from("demo_requests")
+      .update({
+        status: "completed",
+        progress: "Done.",
+        result,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", demo.id);
+    if (doneErr) throw new Error(`demo update failed: ${doneErr.message}`);
+    console.log(
+      `${tag} ✓ done — "${article.title}" pass_rate=${(article.pass_rate * 100).toFixed(1)}%`
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`${tag} ✗ failed:`, msg);
+    await failDemo(demo.id, msg);
+  } finally {
+    clearRunContext();
+  }
+}
+
 async function loop(): Promise<void> {
   console.log(
     `[worker] up — polling ${SUPABASE_URL} every ${POLL_MS}ms (Ctrl-C to stop)`
   );
   while (!stopping) {
+    // Paying jobs always take priority over anonymous demo runs.
     const job = await claimNextJob();
-    if (!job) {
-      await sleep(POLL_MS);
+    if (job) {
+      await runJob(job);
       continue;
     }
-    await runJob(job);
+    const demo = await claimNextDemo();
+    if (demo) {
+      await runDemo(demo);
+      continue;
+    }
+    await sleep(POLL_MS);
   }
   console.log("[worker] shutdown complete");
 }
