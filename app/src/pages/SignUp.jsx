@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
+import SocialAuth from '../components/SocialAuth.jsx';
 
 const PASSWORD_MIN = 8;
 const ALLOWED_PLANS = ['solo', 'studio', 'agency', 'scale'];
@@ -95,6 +96,8 @@ export default function SignUp() {
         </>
       }
     >
+      <SocialAuth verb="Continue" />
+
       <form onSubmit={submit} className="auth-form">
         <label className="field">
           <span className="field-label">Your name</span>

@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import AuthLayout from '../components/AuthLayout.jsx';
+import SocialAuth from '../components/SocialAuth.jsx';
 
 export default function SignIn() {
   const navigate = useNavigate();
@@ -49,6 +50,8 @@ export default function SignIn() {
         </>
       }
     >
+      <SocialAuth verb="Sign in" />
+
       <form onSubmit={submit} className="auth-form">
         <label className="field">
           <span className="field-label">Email</span>
