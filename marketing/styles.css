@@ -681,9 +681,194 @@ a { color: inherit; text-decoration: none; }
 .pr-d { color: var(--fg); font-size: 13.5px; font-weight: 500; margin-bottom: 6px; }
 .pr-a { color: var(--fg-muted); font-size: 12.5px; line-height: 1.5; min-height: 36px; }
 
+/* ── Volume line ── */
+.pr-vol {
+  color: var(--fg); font-size: 13.5px; font-weight: 500;
+  margin-bottom: 14px;
+}
+
+/* ── "Perfect for" persona box ── */
+.pr-persona {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+  background: var(--bg-deep);
+}
+.pr-persona-label {
+  font-size: 10.5px; font-weight: 600; color: var(--fg-subtle);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.pr-persona-text {
+  font-size: 12.5px; color: var(--fg-muted); line-height: 1.5;
+}
+
+/* ── "Everything in X, plus..." delta line ── */
+.pr-delta {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  font-size: 12.5px; color: var(--fg-muted); line-height: 1.55;
+}
+
+/* ── Feature checklist ── */
+.pr-feats {
+  list-style: none; padding: 0; margin: 14px 0 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.pr-feats li {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 12.5px; color: var(--fg); line-height: 1.45;
+}
+.pr-check {
+  flex-shrink: 0; margin-top: 2px;
+  color: var(--fg-muted);
+}
+.pr-check.is-on { color: var(--accent-text); }
+.pr-card.is-featured .pr-check { color: var(--accent-text); }
+
+/* ── Workspace sub-block ── */
+.pr-workspace {
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.pr-workspace-label {
+  font-size: 10.5px; font-weight: 600; color: var(--fg-subtle);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+.pr-workspace-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 4px 0;
+  font-size: 12px; color: var(--fg-muted);
+}
+.pr-workspace-row .mono {
+  font-family: var(--font-mono);
+  color: var(--fg); font-size: 11.5px;
+}
+
+/* ── "Show all features (22)" link ── */
+.pr-all {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 14px;
+  font-size: 12px; font-weight: 500;
+  color: var(--fg-muted);
+  border-bottom: 1px dashed transparent;
+  align-self: flex-start;
+  transition: color 120ms, border-color 120ms;
+}
+.pr-all:hover { color: var(--accent-text); border-color: var(--accent-text); }
+.pr-all .icon { transition: transform 120ms; }
+.pr-all:hover .icon { transform: translateX(2px); }
+
+/* ── Footnote at bottom of card ── */
+.pr-foot-note {
+  margin-top: 14px;
+  font-size: 11.5px; color: var(--fg-subtle);
+  font-family: var(--font-mono);
+}
+
 .pr-foot {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
   margin-top: 22px; color: var(--fg-subtle); font-size: 12px;
+}
+
+/* ─── "What you'd pay otherwise" comparison ─────────────────────── */
+.pp-vs {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.pp-vs-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.pp-vs-row:last-child { border-bottom: none; }
+.pp-vs-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.pp-vs-icon.is-us {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+.pp-vs-name-h {
+  font-size: 14.5px; font-weight: 600; color: var(--fg);
+  margin-bottom: 2px;
+}
+.pp-vs-name-sub {
+  font-size: 12.5px; color: var(--fg-muted); line-height: 1.45;
+}
+.pp-vs-price {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 20px; font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+.pp-vs-strike {
+  color: var(--danger);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(255, 99, 99, 0.55);
+}
+.pp-vs-now { color: var(--accent-text); }
+.pp-vs-per {
+  font-family: var(--font-sans);
+  font-size: 12px; font-weight: 400;
+  color: var(--fg-muted);
+  margin-left: 4px;
+}
+.pp-vs-row.is-us {
+  background: var(--accent-faint);
+  border-top: 1px solid var(--accent);
+}
+
+.pp-vs-foot {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  margin-top: 16px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.pp-vs-foot-l, .pp-vs-foot-r {
+  padding: 18px 20px;
+  background: var(--surface);
+}
+.pp-vs-foot-h {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--fg-subtle);
+  margin-bottom: 6px;
+}
+.pp-vs-foot-r .pp-vs-foot-h { color: var(--accent-text); }
+.pp-vs-foot-sub {
+  font-size: 13px; color: var(--fg); line-height: 1.5;
+}
+@media (max-width: 720px) {
+  .pp-vs-row {
+    grid-template-columns: 36px 1fr;
+    grid-template-rows: auto auto;
+  }
+  .pp-vs-price {
+    grid-column: 2 / -1;
+    text-align: left;
+    font-size: 18px;
+  }
+  .pp-vs-foot { grid-template-columns: 1fr; }
 }
 
 /* ─── FAQ ─────────────────────────────────────────────────────────── */
