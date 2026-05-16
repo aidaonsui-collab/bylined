@@ -116,11 +116,14 @@ export function computeVoiceMatchScore(
   }
 
   // Signature-phrase hits — capped so a one-trick keyword stuff
-  // doesn't max out the score.
+  // doesn't max out the score. Phrases can contain bracketed
+  // placeholders like "More than [number]" or "Stripe's [Product Name]"
+  // — those expand into permissive regex so the article actually has
+  // a chance of matching ("More than 50", "Stripe's Connect").
   const lower = body.toLowerCase();
   const sigHits = fingerprint.signature_phrases
     .filter((p) => p && p.length >= 3)
-    .filter((p) => lower.includes(p.toLowerCase())).length;
+    .filter((p) => phraseMatches(lower, p.toLowerCase())).length;
   score += Math.min(sigHits, 4) * 4;
 
   // Taboo penalty — taboo phrases the brand explicitly avoids.
@@ -148,6 +151,28 @@ export function computeVoiceMatchScore(
 
 function countWords(s: string): number {
   return s.trim().split(/\s+/).filter((w) => w.length > 0).length;
+}
+
+// Match a signature phrase that may include [bracketed] placeholders.
+// "more than [number]" → /more than \w+/  (matches "more than 50")
+// "stripe's [product name]" → /stripe's \S+(\s+\S+)?/  (matches
+//   "stripe's connect" or "stripe's payment processor")
+// Plain phrases (no brackets) fall through to literal substring.
+function phraseMatches(haystack: string, phrase: string): boolean {
+  if (!phrase.includes("[")) return haystack.includes(phrase);
+  // Escape regex specials in the literal parts, then replace each
+  // `[anything]` placeholder with a 1-3 word wildcard.
+  const escaped = phrase
+    .split(/\[[^\]]+\]/)
+    .map((part) => part.replace(/[.*+?^${}()|\\\\]/g, "\\$&"))
+    .join("\\S+(?:\\s+\\S+){0,2}");
+  try {
+    return new RegExp(escaped).test(haystack);
+  } catch {
+    // Defensive: if the constructed regex is malformed for any reason,
+    // fall back to literal — better to under-count than to throw.
+    return haystack.includes(phrase);
+  }
 }
 
 function stripMarkdown(md: string): string {

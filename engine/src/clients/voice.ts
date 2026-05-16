@@ -134,16 +134,31 @@ export async function extractFingerprint(homepage: string): Promise<VoiceFingerp
 }
 
 // Compose a system-prompt fragment that the article generator prepends.
-// Kept small (~10 lines) so it doesn't crowd the rest of the prompt.
+//
+// Strong-tone version: the earlier soft phrasing ("Avoid these words",
+// "~N words") was being ignored by MiniMax — a real Stripe-voice
+// fingerprint produced an article using "leverage" / "seamless" /
+// "robust" (all 3 in the taboo list) and an avg sentence length of
+// 29 vs a target of 16. Stricter framing + explicit max + self-check
+// reminder. Whether it actually helps is empirical; if the next
+// scored article doesn't improve, fall back to a post-generation
+// rewrite pass on taboo hits (see scorer.ts notes).
 export function voicePromptFragment(fp: VoiceFingerprint): string {
-  return `BRAND VOICE — match this style while following all citation rules:
+  const target = fp.avg_sentence_length;
+  // Loose ceiling: any sentence over 1.5× target is too long. For a
+  // target of 16 that's 24 — generous; tightens naturally as fingerprint
+  // shortens.
+  const sentMax = Math.round(target * 1.5);
+  return `BRAND VOICE — match this style. These rules sit ALONGSIDE the citation rules, not below them.
 
 - Tone: ${fp.tone}
 - Voice traits: ${fp.voice_traits.join("; ")}
-- Use these signature phrases naturally where they fit: ${fp.signature_phrases.join(", ")}
-- Avoid these words/phrases entirely: ${fp.taboo.join(", ")}
-- Target sentence length: ~${fp.avg_sentence_length} words
+- Use these signature phrases naturally where they fit (don't force them): ${fp.signature_phrases.join(", ")}
+- BANNED WORDS — your body_markdown must not contain ANY of these (case-insensitive). If you catch yourself reaching for one, rewrite the sentence: ${fp.taboo.join(", ")}
+- Sentence length: aim for ~${target} words on average. Sentences over ${sentMax} words are a style failure — break them in two.
 - Technical level: ${fp.technical_level}
+
+Before returning JSON, scan body_markdown once for the banned words above. If you find any, rewrite that sentence and scan again.
 
 Example paragraph in this voice (for reference, not for copying):
 ${fp.example_paragraph}`;
