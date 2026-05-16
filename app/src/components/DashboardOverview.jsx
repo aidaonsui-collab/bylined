@@ -14,6 +14,7 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import VisibilityChart from './VisibilityChart.jsx';
 
 const WINDOW_DAYS = 30;
 
@@ -23,6 +24,8 @@ export default function DashboardOverview({
   jobs,
   sites,
   voices,
+  userId,
+  signupDate,
 }) {
   const metrics = useMemo(() => {
     const since = Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000;
@@ -164,6 +167,16 @@ export default function DashboardOverview({
           </div>
         </div>
       </div>
+
+      {/* AI-visibility weekly trend — full-width below the grid because
+          it's a time-series view, not a per-window summary. v1 uses
+          client-side mock data (see lib/mockVisibility.js); v2 swaps
+          to live visibility_snapshots rows. */}
+      {userId && signupDate && (
+        <div style={{ marginTop: 16 }}>
+          <VisibilityChart userId={userId} signupDate={signupDate} />
+        </div>
+      )}
     </section>
   );
 }

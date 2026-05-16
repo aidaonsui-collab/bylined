@@ -314,6 +314,8 @@ export default function Dashboard() {
               jobs={jobs}
               sites={sites}
               voices={voices}
+              userId={user?.id}
+              signupDate={user?.created_at}
             />
           )}
 
