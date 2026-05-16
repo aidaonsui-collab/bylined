@@ -1,7 +1,7 @@
 /* Bylined — global + marketing styles, consolidated for static delivery (v2: depth pass). */
 
 @import url('https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700&display=swap');
 
 /* ─── Theme variables (dark default; .light overrides) ──────────────── */
 :root {
@@ -991,6 +991,88 @@ a { color: inherit; text-decoration: none; }
   .pr-grid { grid-template-columns: 1fr; }
   .footer-cols { grid-template-columns: 1fr 1fr; }
   .pp-compare { font-size: 12px; }
+}
+
+/* ─── Editorial dashboard (newsroom redesign) ────────────────────
+   Scoped to .editorial-shell on /app so the marketing/auth pages
+   keep their existing palette. Tokens follow the design bundle's
+   warm-toned "press black" + paper-cream + lime-signal system. */
+.editorial-shell {
+  --ink-0: #0c0b08;
+  --ink-1: #131210;
+  --ink-2: #1a1916;
+  --ink-3: #232220;
+  --rule: #2a2925;
+  --rule-strong: #3a3833;
+  --paper: #efe7d6;
+  --paper-dim: #c8c0b1;
+  --paper-mute: #8a847a;
+  --paper-faint: #5a5650;
+  --paper-ghost: #3a3833;
+
+  --signal: oklch(83% 0.21 130);
+  --signal-dim: oklch(83% 0.21 130 / 0.18);
+  --ed-warn: oklch(80% 0.16 80);
+  --ed-warn-dim: oklch(80% 0.16 80 / 0.18);
+  --ed-fail: oklch(72% 0.18 25);
+  --ed-fail-dim: oklch(72% 0.18 25 / 0.18);
+
+  --ed-serif: "Instrument Serif", "Times New Roman", serif;
+  --ed-sans: "Geist", "General Sans", ui-sans-serif, system-ui, sans-serif;
+  --ed-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  background: var(--ink-0);
+  color: var(--paper);
+  font-family: var(--ed-sans);
+  min-height: 100vh;
+  position: relative;
+}
+/* paper grain — same trick as the source design, very subtle dot pattern */
+.editorial-shell::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(239, 231, 214, 0.012) 1px, transparent 1px);
+  background-size: 3px 3px;
+  pointer-events: none;
+  z-index: 0;
+}
+.editorial-shell ::selection { background: var(--signal); color: var(--ink-0); }
+.editorial-shell .ed-mono { font-family: var(--ed-mono); font-feature-settings: "tnum", "ss01"; }
+.editorial-shell .ed-serif { font-family: var(--ed-serif); font-weight: 400; }
+.editorial-shell .ed-eyebrow {
+  font-family: var(--ed-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-mute);
+  font-weight: 500;
+}
+@keyframes ed-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.85); }
+}
+.editorial-shell .ed-live-dot {
+  display: inline-block;
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--signal);
+  animation: ed-pulse-dot 2.2s ease-in-out infinite;
+}
+
+/* Editorial layout collapses to a single column on narrow screens.
+   The 3-column telemetry block becomes stacked; the 1fr+260px chart
+   row also drops to one column so the side panel sits below. */
+@media (max-width: 960px) {
+  .editorial-shell .ed-telemetry { grid-template-columns: 1fr !important; }
+  .editorial-shell .ed-telemetry > * + * { border-top: 1px solid var(--rule); border-right: none !important; }
+  .editorial-shell .ed-vis-chart-row { grid-template-columns: 1fr !important; }
+  .editorial-shell .ed-status-strip { grid-template-columns: repeat(2, 1fr) !important; }
+  .editorial-shell .ed-status-strip > * { border-bottom: 1px solid var(--rule); }
+  .editorial-shell .ed-pillars-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .editorial-shell .ed-kw-body { grid-template-columns: 1fr !important; }
+  .editorial-shell .ed-onb-wrap { grid-template-columns: 1fr !important; }
+  .editorial-shell .ed-feed-row-head { grid-template-columns: 110px 100px 1fr !important; }
+  .editorial-shell .ed-feed-scores, .editorial-shell .ed-feed-chev { display: none !important; }
+  .editorial-shell .ed-masthead-nav { display: none !important; }
 }
 
 /* ─── Article preview (Dashboard + ArticleDetail) ──────────────── */

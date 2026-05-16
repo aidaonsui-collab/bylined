@@ -1,172 +1,125 @@
-// Phase 4 dashboard — keyword form, jobs queue, articles list.
+// /app dashboard — the "newsroom".
 //
-// Inserts a row into public.jobs; the worker (engine/src/worker.ts)
-// picks it up. We poll every 4s for status updates because Supabase
-// Realtime is fine for a queue this small but adds another wire to
-// debug — pollg keeps things obvious for now.
+// Page is a thin shell: it owns data loading (jobs, articles, sub, sites,
+// voices) and the submit handler that enqueues new jobs, then hands
+// everything to the editorial components in EditorialDashboard.jsx.
+//
+// The previous (non-editorial) DashboardOverview + AppNav are no longer
+// rendered here; Masthead replaces AppNav and the editorial pieces
+// replace the old status strip / gauge / pillars / tasks / form /
+// recent list. Polling, bulk submit, quota gates, regenerate/retry,
+// and PublishControls behavior are all preserved.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
-import PublishControls from '../components/PublishControls.jsx';
-import OnboardingChecklist from '../components/OnboardingChecklist.jsx';
-import AppNav from '../components/AppNav.jsx';
-import DashboardOverview from '../components/DashboardOverview.jsx';
-import { regenerateArticle, retryJob } from '../lib/jobs.js';
-import { renderArticle } from '../lib/renderArticle.js';
+import {
+  Masthead,
+  TrialBanner,
+  StatusStrip,
+  HealthGauge,
+  QualityPillars,
+  TasksList,
+  VisibilityChartEditorial,
+  Onboarding,
+  KeywordForm,
+  RecentFeed,
+  Colophon,
+  computePillars,
+  computeTasks,
+  healthNote,
+  pickOrgName,
+} from '../components/EditorialDashboard.jsx';
 
 const POLL_MS = 4000;
-
-const ArrowRight = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M5 12h14M13 5l7 7-7 7" />
-  </svg>
-);
-
-// Free-trial heads-up shown at the top of the dashboard when the
-// active subscription is a Pilot. Surfaces days/articles left and a
-// direct upgrade CTA so the user understands the trial is finite and
-// where to go when they want more. Once the period_end is in the past
-// the enforce_jobs_quota trigger already blocks new jobs — this just
-// makes the state visible before the user hits that wall.
-function PilotTrialBanner({ sub }) {
-  const remaining = Math.max(0, sub.articles_quota - sub.articles_used_this_period);
-  const endMs = new Date(sub.current_period_end).getTime();
-  const daysLeft = Math.max(0, Math.ceil((endMs - Date.now()) / (24 * 60 * 60 * 1000)));
-  const expired = daysLeft === 0 || remaining === 0;
-  return (
-    <div
-      className="app-callout"
-      style={{
-        marginTop: 24,
-        borderColor: expired ? 'var(--accent-ring)' : undefined,
-        background: expired ? 'var(--accent-faint)' : undefined,
-      }}
-    >
-      <div>
-        <div className="eyebrow" style={{ marginBottom: 8 }}>
-          {expired ? 'Trial ended' : 'Free trial'}
-        </div>
-        <p className="app-callout-p">
-          {expired ? (
-            <>You've used your free trial. Upgrade to keep generating verified articles.</>
-          ) : (
-            <>
-              <strong>{remaining}</strong> {remaining === 1 ? 'article' : 'articles'} and{' '}
-              <strong>{daysLeft}</strong> {daysLeft === 1 ? 'day' : 'days'} left in your trial.
-              Upgrade anytime to keep going.
-            </>
-          )}
-        </p>
-      </div>
-      <Link to="/app/pricing" className="btn btn-primary" style={{ marginLeft: 'auto' }}>
-        Upgrade <ArrowRight />
-      </Link>
-    </div>
-  );
-}
-
-function StatusChip({ status }) {
-  const map = {
-    queued: { label: 'Queued', cls: 'chip chip-faint' },
-    running: { label: 'Running…', cls: 'chip chip-warn' },
-    completed: { label: 'Done', cls: 'chip' },
-    failed: { label: 'Failed', cls: 'chip chip-warn' },
-    draft: { label: 'Draft', cls: 'chip' },
-    published: { label: 'Published', cls: 'chip chip-accent' },
-  };
-  const m = map[status] ?? { label: status, cls: 'chip' };
-  return <span className={m.cls}>{m.label}</span>;
-}
-
-function relTime(iso) {
-  if (!iso) return '';
-  const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return new Date(iso).toLocaleDateString();
-}
+const WINDOW_DAYS = 30;
+const MAX_BULK = 50;
 
 export default function Dashboard() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const toast = useToast();
 
+  // ── form state (owned here so it survives re-mounts during polls) ──
   const [keyword, setKeyword] = useState('');
-  const [voiceId, setVoiceId] = useState(''); // optional voice attached to the job
+  const [voiceId, setVoiceId] = useState('');
+  const [autoPublishSiteId, setAutoPublishSiteId] = useState('');
+  const [autoPublishLive, setAutoPublishLive] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // ── data ──
   const [jobs, setJobs] = useState([]);
   const [articles, setArticles] = useState([]);
-  // Separate slim fetch for the dashboard cards — last 30 days of
-  // scores so the gauges reflect the actual window even when the
-  // recent-list pagination is at its first page.
-  const [metricsArticles, setMetricsArticles] = useState([]);
-  // How many rows to show in the Recent list. Bumped by "Load more".
+  // Two 30d windows so we can show pillar deltas (curr vs prior).
+  const [recentMetrics, setRecentMetrics] = useState([]);
+  const [priorMetrics, setPriorMetrics] = useState([]);
   const [articleLimit, setArticleLimit] = useState(20);
   const [subscription, setSubscription] = useState(null);
   const [sites, setSites] = useState([]);
   const [voices, setVoices] = useState([]);
-  const [openArticleId, setOpenArticleId] = useState(null);
-  // Bulk + auto-publish controls. Empty string for autoPublishSiteId
-  // means "don't auto-publish" — same UX as the existing voice select.
-  // autoPublishLive is meaningful only when a site is picked.
-  const [autoPublishSiteId, setAutoPublishSiteId] = useState('');
-  const [autoPublishLive, setAutoPublishLive] = useState(true);
-
-  const displayName =
-    profile?.full_name ||
-    user?.user_metadata?.full_name ||
-    user?.email?.split('@')[0] ||
-    'there';
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) return;
-    const thirtyDaysAgo = new Date(
-      Date.now() - 30 * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const [jobsRes, articlesRes, metricsRes, subRes, sitesRes, voicesRes] =
-      await Promise.all([
-        supabase
-          .from('jobs')
-          .select('id, keyword, status, error, created_at, completed_at, article_id')
-          .order('created_at', { ascending: false })
-          .limit(20),
-        supabase
-          .from('articles')
-          .select('id, keyword, title, meta_description, body_markdown, pass_rate, aeo_score, voice_match_score, status, generated_at, receipts, cms_post_url, cms_post_id, site_id, published_at')
-          .order('generated_at', { ascending: false })
-          .limit(articleLimit),
-        supabase
-          .from('articles')
-          .select('id, status, pass_rate, aeo_score, voice_match_score, generated_at')
-          .gte('generated_at', thirtyDaysAgo)
-          .order('generated_at', { ascending: false })
-          .limit(500),
-        supabase
-          .from('subscriptions')
-          .select('plan, status, articles_used_this_period, articles_quota, current_period_end')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('sites')
-          .select('id, name, cms_type, is_active')
-          .eq('is_active', true)
-          .order('name'),
-        supabase
-          .from('voices')
-          .select('id, source_url, created_at')
-          .order('created_at', { ascending: false }),
-      ]);
+    const now = Date.now();
+    const thirtyDaysAgo = new Date(now - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const sixtyDaysAgo = new Date(now - 2 * WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      jobsRes,
+      articlesRes,
+      recentRes,
+      priorRes,
+      subRes,
+      sitesRes,
+      voicesRes,
+    ] = await Promise.all([
+      supabase
+        .from('jobs')
+        .select('id, keyword, status, error, created_at, completed_at, article_id')
+        .order('created_at', { ascending: false })
+        .limit(40),
+      supabase
+        .from('articles')
+        .select(
+          'id, keyword, title, meta_description, body_markdown, pass_rate, aeo_score, voice_match_score, status, generated_at, receipts, cms_post_url, cms_post_id, site_id, published_at',
+        )
+        .order('generated_at', { ascending: false })
+        .limit(articleLimit),
+      supabase
+        .from('articles')
+        .select('id, status, pass_rate, aeo_score, voice_match_score, generated_at')
+        .gte('generated_at', thirtyDaysAgo)
+        .order('generated_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('articles')
+        .select('id, pass_rate, aeo_score, voice_match_score, generated_at')
+        .gte('generated_at', sixtyDaysAgo)
+        .lt('generated_at', thirtyDaysAgo)
+        .order('generated_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('subscriptions')
+        .select('plan, status, articles_used_this_period, articles_quota, current_period_end')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('sites')
+        .select('id, name, cms_type, is_active, voice_id')
+        .eq('is_active', true)
+        .order('name'),
+      supabase
+        .from('voices')
+        .select('id, source_url, created_at')
+        .order('created_at', { ascending: false }),
+    ]);
+
     setJobs(jobsRes.data ?? []);
     setArticles(articlesRes.data ?? []);
-    setMetricsArticles(metricsRes.data ?? []);
+    setRecentMetrics(recentRes.data ?? []);
+    setPriorMetrics(priorRes.data ?? []);
     setSubscription(subRes.data ?? null);
     setSites(sitesRes.data ?? []);
     setVoices(voicesRes.data ?? []);
@@ -178,40 +131,125 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [load]);
 
+  // ── derived ──
   const activeSub =
-    subscription &&
-    (subscription.status === 'active' || subscription.status === 'trialing')
+    subscription && (subscription.status === 'active' || subscription.status === 'trialing')
       ? subscription
       : null;
+
   const remaining = activeSub
     ? Math.max(0, activeSub.articles_quota - activeSub.articles_used_this_period)
     : 0;
-  // Parse the keyword field as one-per-line so the SAME textbox handles
-  // both a single keyword and a bulk paste. Empty lines are stripped;
-  // each survives only if it has at least 3 non-whitespace chars.
+
   const parsedKeywords = keyword
     .split('\n')
     .map((k) => k.trim())
     .filter((k) => k.length >= 3);
   const keywordCount = parsedKeywords.length;
-  // Cap per submission so a 500-line paste doesn't accidentally drain
-  // a month's quota. Quota itself is enforced by the DB trigger, but
-  // a softer client-side cap gives a better error.
-  const MAX_BULK = 50;
   const overCap = keywordCount > MAX_BULK;
-  const overQuota = activeSub && keywordCount > remaining;
+  const overQuota = !!activeSub && keywordCount > remaining;
   const canSubmit =
-    activeSub && remaining > 0 && keywordCount >= 1 && !overCap && !overQuota && !submitting;
+    !!activeSub &&
+    remaining > 0 &&
+    keywordCount >= 1 &&
+    !overCap &&
+    !overQuota &&
+    !submitting;
 
+  // Telemetry derivations.
+  const pillars = useMemo(
+    () =>
+      computePillars({
+        recent: recentMetrics,
+        prior: priorMetrics,
+        quotaUsed: activeSub?.articles_used_this_period ?? 0,
+        quotaTotal: activeSub?.articles_quota ?? 0,
+      }),
+    [recentMetrics, priorMetrics, activeSub],
+  );
+
+  const tasks = useMemo(
+    () =>
+      computeTasks({
+        articles: recentMetrics,
+        jobs,
+        sites,
+        quotaUsed: activeSub?.articles_used_this_period ?? 0,
+        quotaTotal: activeSub?.articles_quota ?? 0,
+      }),
+    [recentMetrics, jobs, sites, activeSub],
+  );
+
+  const healthBreakdown = useMemo(() => {
+    const get = (id) => pillars.find((p) => p.id === id)?.value ?? null;
+    return { receipts: get('receipts'), aeo: get('aeo'), voice: get('voice') };
+  }, [pillars]);
+
+  const health = useMemo(() => {
+    const parts = [healthBreakdown.receipts, healthBreakdown.aeo, healthBreakdown.voice].filter(
+      (v) => v != null,
+    );
+    if (parts.length === 0) return null;
+    return Math.round(parts.reduce((s, v) => s + v, 0) / parts.length);
+  }, [healthBreakdown]);
+
+  // Strip metadata.
+  const voiceHost = useMemo(() => {
+    if (!voices?.[0]?.source_url) return null;
+    try {
+      return new URL(voices[0].source_url).hostname.replace(/^www\./, '');
+    } catch {
+      return null;
+    }
+  }, [voices]);
+  const siteName = sites?.[0]?.name ?? null;
+  const nextRunHours = useMemo(() => {
+    const queued = jobs.find((j) => j.status === 'queued' || j.status === 'running');
+    if (!queued) return null;
+    const ageMs = Date.now() - new Date(queued.created_at).getTime();
+    return Math.max(0, Math.round(24 - ageMs / (1000 * 60 * 60)));
+  }, [jobs]);
+  const jobsQueued = useMemo(
+    () => jobs.filter((j) => j.status === 'queued' || j.status === 'running').length,
+    [jobs],
+  );
+  const org = useMemo(() => pickOrgName({ user, voices, sites }), [user, voices, sites]);
+
+  // Feed: merge jobs+articles into a single chronological wire.
+  const articleById = useMemo(() => {
+    const m = new Map();
+    for (const a of articles) m.set(a.id, a);
+    return m;
+  }, [articles]);
+
+  const rows = useMemo(() => {
+    const seenArticleIds = new Set();
+    const out = [];
+    for (const j of jobs) {
+      if (j.article_id && articleById.has(j.article_id)) {
+        const a = articleById.get(j.article_id);
+        seenArticleIds.add(a.id);
+        out.push({ kind: 'article', job: j, article: a, ts: a.generated_at });
+      } else {
+        out.push({ kind: 'job', job: j, ts: j.created_at });
+      }
+    }
+    for (const a of articles) {
+      if (!seenArticleIds.has(a.id)) {
+        out.push({ kind: 'article', article: a, ts: a.generated_at });
+      }
+    }
+    out.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+    return out;
+  }, [jobs, articles, articleById]);
+
+  // Submit handler — same DB write + toast logic as before, just
+  // invoked from the editorial KeywordForm.
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitting(true);
 
-    // Build one row per keyword. Service-side BEFORE-INSERT trigger
-    // re-checks quota per row, so a partial failure mid-bulk just
-    // means later keywords don't insert — earlier ones still queue
-    // successfully (we surface a partial-success toast).
     const rows = parsedKeywords.map((kw) => ({
       user_id: user.id,
       keyword: kw,
@@ -220,10 +258,7 @@ export default function Dashboard() {
       auto_publish_live: autoPublishSiteId ? autoPublishLive : false,
     }));
 
-    const { data: inserted, error } = await supabase
-      .from('jobs')
-      .insert(rows)
-      .select('id');
+    const { data: inserted, error } = await supabase.from('jobs').insert(rows).select('id');
     setSubmitting(false);
 
     if (error) {
@@ -243,487 +278,151 @@ export default function Dashboard() {
       queuedCount === 1
         ? 'Job queued. The worker will pick it up shortly.'
         : `${queuedCount} jobs queued. They'll run one at a time.`,
-      { tone: 'success' }
+      { tone: 'success' },
     );
     load();
   };
 
-  // Merge jobs + articles into one chronological list. A completed job's
-  // article shows up via its article_id; jobs without an article (queued,
-  // running, failed) show as in-progress rows.
-  const articleById = useMemo(() => {
-    const m = new Map();
-    for (const a of articles) m.set(a.id, a);
-    return m;
-  }, [articles]);
-
-  const rows = useMemo(() => {
-    const seenArticleIds = new Set();
-    const out = [];
-    for (const j of jobs) {
-      if (j.article_id && articleById.has(j.article_id)) {
-        const a = articleById.get(j.article_id);
-        seenArticleIds.add(a.id);
-        out.push({ kind: 'article', job: j, article: a, ts: a.generated_at });
-      } else {
-        out.push({ kind: 'job', job: j, ts: j.created_at });
-      }
-    }
-    // Articles created before jobs existed (or orphaned) — show too.
-    for (const a of articles) {
-      if (!seenArticleIds.has(a.id)) {
-        out.push({ kind: 'article', article: a, ts: a.generated_at });
-      }
-    }
-    out.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
-    return out;
-  }, [jobs, articles, articleById]);
+  const hasArticles = (articles?.length ?? 0) > 0;
 
   return (
-    <div className="app-shell">
-      <AppNav activeSub={activeSub} />
+    <div className="editorial-shell">
+      <div style={{ maxWidth: 1480, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        <Masthead activeSub={activeSub} org={org} />
 
-      <main className="app-main">
-        <div className="app-container">
-          <div className="eyebrow" style={{ marginBottom: 14 }}>Articles</div>
-          <h1 className="app-h1 serif">
-            Hi, <span className="hero-h1-em">{displayName.split(' ')[0]}</span>.
-          </h1>
-          <p className="app-lede">
-            Type a keyword. Bylined sources, drafts, and verifies an article — then it
-            shows up below.
-          </p>
+        <TrialBanner activeSub={activeSub} />
 
-          {activeSub && activeSub.plan === 'pilot' && (
-            <PilotTrialBanner sub={activeSub} />
-          )}
+        <StatusStrip
+          recentArticleCount={recentMetrics.length}
+          voiceHost={voiceHost}
+          siteName={siteName}
+          nextRunHours={nextRunHours}
+          jobsQueued={jobsQueued}
+          quotaUsed={activeSub?.articles_used_this_period ?? 0}
+          quotaTotal={activeSub?.articles_quota ?? 0}
+        />
 
-          {activeSub && (
-            <OnboardingChecklist
-              sites={sites}
-              voices={voices}
-              hasArticles={articles.length > 0}
-              userId={user.id}
-            />
-          )}
+        <section
+          className="ed-telemetry"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(320px, 380px) 1.4fr minmax(300px, 360px)',
+            borderBottom: '1px solid var(--rule)',
+          }}
+        >
+          <HealthGauge
+            value={health}
+            breakdown={healthBreakdown}
+            note={healthNote(health, healthBreakdown)}
+          />
+          <QualityPillars pillars={pillars} />
+          <TasksList tasks={tasks} />
+        </section>
 
-          {activeSub && (
-            <DashboardOverview
-              activeSub={activeSub}
-              articles={metricsArticles}
-              jobs={jobs}
-              sites={sites}
-              voices={voices}
-              userId={user?.id}
-              signupDate={user?.created_at}
-            />
-          )}
+        {user?.id && user?.created_at && (
+          <VisibilityChartEditorial
+            userId={user.id}
+            signupDate={user.created_at}
+            voiceHost={voiceHost}
+          />
+        )}
 
-          {!activeSub ? (
-            <div className="app-callout" style={{ marginTop: 24 }}>
-              <div>
-                <div className="eyebrow" style={{ marginBottom: 8 }}>No active plan</div>
-                <p className="app-callout-p">
-                  Subscribe to a plan to start generating articles.
-                </p>
-              </div>
-              <Link to="/app/pricing" className="btn btn-primary" style={{ marginLeft: 'auto' }}>
-                See plans <ArrowRight />
-              </Link>
-            </div>
-          ) : (
-            <form
-              onSubmit={handleSubmit}
-              className="app-callout"
-              style={{
-                marginTop: 24,
-                gap: 12,
-                alignItems: 'stretch',
-                flexDirection: 'column',
-              }}
-            >
-              <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', flexWrap: 'wrap' }}>
-                <textarea
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  placeholder={
-                    'best email marketing platforms for shopify stores 2026\n' +
-                    'one keyword per line — bulk mode'
-                  }
-                  className="input"
-                  style={{
-                    flex: 1,
-                    minWidth: 220,
-                    minHeight: 64,
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    lineHeight: 1.5,
-                    padding: '8px 12px',
-                  }}
-                  disabled={submitting || remaining === 0}
-                  rows={3}
-                />
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={!canSubmit}
-                  style={{ whiteSpace: 'nowrap', alignSelf: 'flex-start' }}
-                >
-                  {submitting
-                    ? 'Queueing…'
-                    : remaining === 0
-                    ? 'Quota used'
-                    : keywordCount > 1
-                    ? `Generate ${keywordCount}`
-                    : 'Generate'}{' '}
-                  {!submitting && remaining > 0 && <ArrowRight />}
-                </button>
-              </div>
-              {overCap && (
-                <div style={{ fontSize: 12, color: 'var(--danger)' }}>
-                  Cap is {MAX_BULK} keywords per submission. Trim the list and try again.
-                </div>
-              )}
-              {!overCap && overQuota && (
-                <div style={{ fontSize: 12, color: 'var(--danger)' }}>
-                  Only {remaining} {remaining === 1 ? 'article' : 'articles'} left in your
-                  quota — trim to {remaining} or fewer.
-                </div>
-              )}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 16,
-                  fontSize: 12,
-                  color: 'var(--fg-muted)',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span>Voice:</span>
-                  <select
-                    className="input"
-                    value={voiceId}
-                    onChange={(e) => setVoiceId(e.target.value)}
-                    disabled={submitting || voices.length === 0}
-                    style={{ width: 'auto', minWidth: 180, height: 28, fontSize: 12.5 }}
-                  >
-                    <option value="">No voice (generic style)</option>
-                    {voices.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {new URL(v.source_url).hostname}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span>Auto-publish:</span>
-                  <select
-                    className="input"
-                    value={autoPublishSiteId}
-                    onChange={(e) => setAutoPublishSiteId(e.target.value)}
-                    disabled={submitting || sites.length === 0}
-                    style={{ width: 'auto', minWidth: 180, height: 28, fontSize: 12.5 }}
-                  >
-                    <option value="">Off (publish manually)</option>
-                    {sites.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.cms_type})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {autoPublishSiteId && (
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={autoPublishLive}
-                      onChange={(e) => setAutoPublishLive(e.target.checked)}
-                      disabled={submitting}
-                    />
-                    <span>Publish live (uncheck for draft)</span>
-                  </label>
-                )}
-                {voices.length === 0 && (
-                  <span>
-                    <Link to="/app/voice">Extract a voice</Link> for branded output.
-                  </span>
-                )}
-              </div>
-            </form>
-          )}
+        <Onboarding
+          sites={sites}
+          voices={voices}
+          hasArticles={hasArticles}
+          userId={user?.id}
+        />
 
-          {activeSub && remaining === 0 && (
-            <p className="app-fineprint" style={{ marginTop: 12, color: 'var(--fg-muted)' }}>
-              You've used all {activeSub.articles_quota} articles this period. Renews{' '}
-              {new Date(activeSub.current_period_end).toLocaleDateString()}.{' '}
-              <Link to="/app/billing">Upgrade</Link> for a higher quota.
-            </p>
-          )}
+        {activeSub ? (
+          <KeywordForm
+            keyword={keyword}
+            setKeyword={setKeyword}
+            voiceId={voiceId}
+            setVoiceId={setVoiceId}
+            autoPublishSiteId={autoPublishSiteId}
+            setAutoPublishSiteId={setAutoPublishSiteId}
+            autoPublishLive={autoPublishLive}
+            setAutoPublishLive={setAutoPublishLive}
+            voices={voices}
+            sites={sites}
+            submitting={submitting}
+            canSubmit={canSubmit}
+            remaining={remaining}
+            keywordCount={keywordCount}
+            overCap={overCap}
+            overQuota={overQuota}
+            maxBulk={MAX_BULK}
+            onSubmit={handleSubmit}
+          />
+        ) : (
+          <NoPlanBanner />
+        )}
 
-          <div id="recent" style={{ marginTop: 40, scrollMarginTop: 80 }}>
-            <div className="eyebrow" style={{ marginBottom: 12 }}>Recent</div>
-            {rows.length === 0 ? (
-              <div className="app-callout">
-                <div style={{ color: 'var(--fg-muted)' }}>
-                  No articles yet. Submit a keyword above to get started.
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {rows.map((r) => (
-                  <ArticleRow
-                    key={r.kind === 'article' ? `a-${r.article.id}` : `j-${r.job.id}`}
-                    row={r}
-                    isOpen={r.kind === 'article' && openArticleId === r.article.id}
-                    onToggle={() =>
-                      r.kind === 'article'
-                        ? setOpenArticleId(
-                            openArticleId === r.article.id ? null : r.article.id
-                          )
-                        : null
-                    }
-                    sites={sites}
-                    userId={user.id}
-                    onChanged={load}
-                    toast={toast}
-                  />
-                ))}
-              </div>
-            )}
-            {articles.length >= articleLimit && (
-              <div style={{ marginTop: 16, textAlign: 'center' }}>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => setArticleLimit((n) => n + 20)}
-                >
-                  Load more
-                </button>
-              </div>
-            )}
-          </div>
+        <div id="recent">
+          <RecentFeed
+            rows={rows}
+            sites={sites}
+            userId={user?.id}
+            onChanged={load}
+            toast={toast}
+            canLoadMore={articles.length >= articleLimit}
+            onLoadMore={() => setArticleLimit((n) => n + 20)}
+          />
         </div>
-      </main>
+
+        <Colophon org={org} />
+      </div>
     </div>
   );
 }
 
-function ArticleRow({ row, isOpen, onToggle, sites, userId, onChanged, toast }) {
-  // Preview ⇄ raw toggle, scoped to this row. Preview is the default
-  // because the question users ask when expanding an article is "what
-  // will this look like once published?" — not "show me the markdown."
-  const [bodyView, setBodyView] = useState('preview');
-  const renderedHtml = useMemo(
-    () =>
-      row.kind === 'article'
-        ? renderArticle(row.article.body_markdown, row.article.receipts)
-        : '',
-    [row]
-  );
-  if (row.kind === 'job') {
-    const j = row.job;
-    const isFailed = j.status === 'failed';
-    return (
-      <div className="app-tile" style={{ padding: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <StatusChip status={j.status} />
-          <div style={{ flex: 1, minWidth: 0, color: 'var(--fg)' }}>
-            <div style={{ fontWeight: 500 }}>{j.keyword}</div>
-            <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-              {relTime(j.created_at)}
-            </div>
-          </div>
-          {isFailed && (
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={async () => {
-                const result = await retryJob(j.id);
-                if (!result.ok) {
-                  toast(result.error || 'Retry failed.', { tone: 'danger' });
-                  return;
-                }
-                toast('Re-queued — no quota charge for retries.', { tone: 'success' });
-                onChanged?.();
-              }}
-            >
-              Retry
-            </button>
-          )}
-        </div>
-        {isFailed && j.error && (
-          <div
-            className="mono"
-            style={{
-              marginTop: 10,
-              fontSize: 12,
-              color: 'var(--fg-muted)',
-              background: 'rgba(255,255,255,0.04)',
-              padding: '8px 10px',
-              borderRadius: 6,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {j.error}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const a = row.article;
-  const verified = (a.receipts ?? []).filter((r) => r.verified).length;
-  const total = (a.receipts ?? []).length;
-  const isPublished = a.status === 'published' && a.cms_post_url;
-
+// When the user has no active subscription, the keyword form is
+// replaced by this CTA. Same styling tokens as the surrounding
+// editorial chrome so it doesn't look like a fallback.
+function NoPlanBanner() {
   return (
-    <div className="app-tile" style={{ padding: 16 }}>
-      <button
-        type="button"
-        onClick={onToggle}
+    <section
+      style={{
+        padding: '40px 32px',
+        borderTop: '1px solid var(--rule)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 24,
+      }}
+    >
+      <div>
+        <span className="ed-eyebrow">No active plan</span>
+        <h2
+          className="ed-serif"
+          style={{
+            margin: '8px 0 0',
+            fontSize: 30,
+            fontStyle: 'italic',
+            color: 'var(--paper)',
+          }}
+        >
+          Subscribe a plan to start filing.
+        </h2>
+      </div>
+      <a
+        href="/app/pricing"
         style={{
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          textAlign: 'left',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          width: '100%',
-          color: 'inherit',
-          flexWrap: 'wrap',
+          padding: '12px 18px',
+          background: 'oklch(83% 0.21 130)',
+          color: 'var(--ink-0)',
+          fontFamily: 'var(--ed-mono)',
+          fontSize: 11,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          borderRadius: 3,
+          fontWeight: 600,
         }}
       >
-        <StatusChip status={isPublished ? 'published' : 'completed'} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, color: 'var(--fg)' }}>{a.title}</div>
-          <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
-            {a.keyword} · {relTime(a.generated_at)}
-            {isPublished && a.published_at && ` · published ${relTime(a.published_at)}`}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span className="mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-            {verified}/{total} cites · {((a.pass_rate ?? 0) * 100).toFixed(0)}%
-          </span>
-        </div>
-      </button>
-      {isOpen && (
-        <div style={{ marginTop: 16 }}>
-          {a.meta_description && (
-            <p style={{ color: 'var(--fg-muted)', fontStyle: 'italic', marginBottom: 12 }}>
-              {a.meta_description}
-            </p>
-          )}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 8,
-              gap: 8,
-            }}
-          >
-            <span style={{ fontSize: 11.5, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
-              {bodyView === 'preview' ? 'Preview' : 'Raw markdown'}
-            </span>
-            <div style={{ display: 'inline-flex', gap: 4 }}>
-              <button
-                type="button"
-                className={`btn btn-sm ${bodyView === 'preview' ? '' : 'btn-ghost'}`}
-                onClick={() => setBodyView('preview')}
-              >
-                Preview
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${bodyView === 'raw' ? '' : 'btn-ghost'}`}
-                onClick={() => setBodyView('raw')}
-              >
-                Raw
-              </button>
-            </div>
-          </div>
-          {bodyView === 'preview' ? (
-            <div
-              className="article-prose"
-              style={{ maxHeight: 480, overflow: 'auto', padding: 18 }}
-              dangerouslySetInnerHTML={{ __html: renderedHtml }}
-            />
-          ) : (
-            <pre
-              style={{
-                background: 'rgba(255,255,255,0.03)',
-                padding: 14,
-                borderRadius: 8,
-                maxHeight: 420,
-                overflow: 'auto',
-                whiteSpace: 'pre-wrap',
-                fontSize: 13,
-                lineHeight: 1.55,
-                color: 'var(--fg)',
-              }}
-            >
-              {a.body_markdown}
-            </pre>
-          )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Link to={`/app/articles/${a.id}`} className="btn btn-sm">
-              Open detail →
-            </Link>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                navigator.clipboard.writeText(a.body_markdown);
-                toast('Markdown copied', { tone: 'success' });
-              }}
-            >
-              Copy markdown
-            </button>
-            <PublishControls
-              article={a}
-              sites={sites}
-              onPublished={onChanged}
-              toast={toast}
-            />
-            {isPublished && (
-              <a
-                href={a.cms_post_url}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-sm"
-              >
-                View on site →
-              </a>
-            )}
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
-              onClick={async () => {
-                if (
-                  !confirm(
-                    'Regenerate? Queues a fresh job (same keyword + voice) and counts as one article against your quota.'
-                  )
-                )
-                  return;
-                const result = await regenerateArticle(a, userId);
-                if (!result.ok) {
-                  toast(result.error, { tone: 'danger' });
-                  return;
-                }
-                toast('Regeneration queued.', { tone: 'success' });
-                onChanged?.();
-              }}
-            >
-              Regenerate
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+        See plans →
+      </a>
+    </section>
   );
 }
