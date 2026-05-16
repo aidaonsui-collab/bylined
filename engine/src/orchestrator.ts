@@ -6,6 +6,7 @@ import { verifyClaim, fuzzyMatch, extractAllNumbers } from "./verifier.js";
 import { retryCitation } from "./regenerator.js";
 import { snapshotMany } from "./clients/wayback.js";
 import type { VoiceFingerprint } from "./clients/voice.js";
+import { computeAEOScore, computeVoiceMatchScore } from "./scorer.js";
 import type { Article, Fact, Receipt } from "./types.js";
 
 // Pass-rate policy. The marketing copy promises a rolling first-pass
@@ -501,12 +502,20 @@ export async function generate(opts: GenerateOptions): Promise<Article> {
       ? passed.length / generated.citations.length
       : 0;
 
-  return {
+  const draftArticle: Article = {
     title: generated.title,
     meta_description: generated.meta_description,
     body_markdown: body,
     receipts: [...verifiedReceipts, ...failedWithIds],
     pass_rate: passRate,
     generated_at: startedAt,
+  };
+
+  return {
+    ...draftArticle,
+    aeo_score: computeAEOScore(draftArticle),
+    voice_match_score: opts.voice
+      ? computeVoiceMatchScore(draftArticle, opts.voice)
+      : null,
   };
 }

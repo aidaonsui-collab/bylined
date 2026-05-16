@@ -45,6 +45,10 @@ export const ArticleSchema = z.object({
   receipts: z.array(ReceiptSchema),
   pass_rate: z.number().min(0).max(1),
   generated_at: z.string(),
+  // Heuristic 0-100 scores feeding the in-app dashboard.
+  // voice_match_score is null when no voice fingerprint was used.
+  aeo_score: z.number().int().min(0).max(100).optional(),
+  voice_match_score: z.number().int().min(0).max(100).nullable().optional(),
 });
 export type Article = z.infer<typeof ArticleSchema>;
 

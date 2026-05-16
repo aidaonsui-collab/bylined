@@ -272,6 +272,8 @@ async function runJob(job: Job): Promise<void> {
         body_markdown: article.body_markdown,
         receipts: article.receipts,
         pass_rate: article.pass_rate,
+        aeo_score: article.aeo_score ?? null,
+        voice_match_score: article.voice_match_score ?? null,
         status: "draft",
         generated_at: article.generated_at,
       })

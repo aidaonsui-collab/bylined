@@ -13,6 +13,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import PublishControls from '../components/PublishControls.jsx';
 import OnboardingChecklist from '../components/OnboardingChecklist.jsx';
 import AppNav from '../components/AppNav.jsx';
+import DashboardOverview from '../components/DashboardOverview.jsx';
 import { regenerateArticle, retryJob } from '../lib/jobs.js';
 import { renderArticle } from '../lib/renderArticle.js';
 
@@ -127,7 +128,7 @@ export default function Dashboard() {
         .limit(20),
       supabase
         .from('articles')
-        .select('id, keyword, title, meta_description, body_markdown, pass_rate, status, generated_at, receipts, cms_post_url, cms_post_id, site_id, published_at')
+        .select('id, keyword, title, meta_description, body_markdown, pass_rate, aeo_score, voice_match_score, status, generated_at, receipts, cms_post_url, cms_post_id, site_id, published_at')
         .order('generated_at', { ascending: false })
         .limit(20),
       supabase
@@ -289,6 +290,16 @@ export default function Dashboard() {
             />
           )}
 
+          {activeSub && (
+            <DashboardOverview
+              activeSub={activeSub}
+              articles={articles}
+              jobs={jobs}
+              sites={sites}
+              voices={voices}
+            />
+          )}
+
           {!activeSub ? (
             <div className="app-callout" style={{ marginTop: 24 }}>
               <div>
@@ -432,7 +443,7 @@ export default function Dashboard() {
             </p>
           )}
 
-          <div style={{ marginTop: 40 }}>
+          <div id="recent" style={{ marginTop: 40, scrollMarginTop: 80 }}>
             <div className="eyebrow" style={{ marginBottom: 12 }}>Recent</div>
             {rows.length === 0 ? (
               <div className="app-callout">
