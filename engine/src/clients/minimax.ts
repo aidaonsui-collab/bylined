@@ -14,8 +14,19 @@ interface MinimaxChoice {
   finish_reason?: string;
 }
 
+// MiniMax's API mirrors OpenAI's response shape — usage block carries
+// per-call token counts. We log them so cost_events stores real numbers
+// instead of priceFor()'s fallback. If the field ever disappears or
+// the names change, priceFor() falls back to a per-call estimate.
+interface MinimaxUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
 interface MinimaxResponse {
   choices: MinimaxChoice[];
+  usage?: MinimaxUsage;
   base_resp?: { status_code: number; status_msg: string };
 }
 
@@ -79,6 +90,8 @@ export async function chat(messages: Message[], opts: ChatOptions = {}): Promise
         event_type: opts.costType ?? "llm_other",
         provider: "minimax",
         model,
+        input_tokens: data.usage?.prompt_tokens,
+        output_tokens: data.usage?.completion_tokens,
         duration_ms: Date.now() - startedAt,
         metadata: { attempt },
       });

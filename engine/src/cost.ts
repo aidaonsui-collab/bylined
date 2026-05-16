@@ -47,10 +47,26 @@ export interface CostEvent {
 // change. Numbers are rough and biased toward over-estimating so we
 // don't underprice.
 
-// Minimax M2.7 Plus plan: $30/mo for 4500 req / 5h ≈ 270k req / mo.
-// Effective per-request cost ≈ $30 / 270000 = $0.000111.
-// For LLM calls we charge by request, not tokens (plan is request-quota).
-const MINIMAX_REQ_COST = 0.000111;
+// MiniMax developer API is pay-per-token (confirmed against
+// platform.minimax.io/docs/pricing/overview May 2026):
+//   MiniMax-M2.7:    $0.30 / 1M input, $1.20 / 1M output  ← our default
+//   MiniMax-Text-01: $0.20 / 1M input, $1.10 / 1M output
+// Output is ~4× input cost — keep that in mind when shaping prompts.
+//
+// Earlier versions of this file priced every call at a flat $0.000111
+// assuming a plan-quota model. That under-reported real cost ~3-5×
+// once articles started using long contexts. priceFor() now does
+// proper per-token math when the usage block is populated; falls back
+// to a per-call estimate if input/output_tokens are missing.
+//
+// If MINIMAX_MODEL ever changes (env override), confirm the rate-card
+// for the new model name before assuming these constants still apply —
+// M2.7 reasoning models in particular include hidden reasoning tokens
+// in the output count, so cost-per-message is higher than you'd
+// estimate from the visible response length.
+const MINIMAX_INPUT_PER_TOKEN = 0.3 / 1_000_000;
+const MINIMAX_OUTPUT_PER_TOKEN = 1.2 / 1_000_000;
+const MINIMAX_FLAT_FALLBACK = 0.0005; // used only when usage missing
 
 // OpenAI GPT-5-mini approximate (Sept 2026 pricing; adjust if real).
 // $0.25 / 1M input tokens, $1.50 / 1M output tokens.
@@ -84,7 +100,15 @@ export function priceFor(opts: PricingHints): number {
   const provider = opts.provider?.toLowerCase();
 
   if (provider === "minimax") {
-    return MINIMAX_REQ_COST;
+    const inT = opts.input_tokens;
+    const outT = opts.output_tokens;
+    // Use real per-token math when usage is reported (post-May-2026
+    // builds). Fall back to a flat per-call estimate when the
+    // response didn't include a usage block.
+    if (typeof inT === "number" || typeof outT === "number") {
+      return (inT ?? 0) * MINIMAX_INPUT_PER_TOKEN + (outT ?? 0) * MINIMAX_OUTPUT_PER_TOKEN;
+    }
+    return MINIMAX_FLAT_FALLBACK;
   }
 
   if (provider === "openai") {
