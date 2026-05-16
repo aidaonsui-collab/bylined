@@ -12,18 +12,11 @@ import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import PublishControls from '../components/PublishControls.jsx';
 import OnboardingChecklist from '../components/OnboardingChecklist.jsx';
+import AppNav from '../components/AppNav.jsx';
 import { regenerateArticle, retryJob } from '../lib/jobs.js';
 import { renderArticle } from '../lib/renderArticle.js';
 
 const POLL_MS = 4000;
-
-const Logo = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 4 L8 12 L14 20" />
-    <circle cx="14" cy="4" r="1.6" fill="currentColor" stroke="none" />
-    <circle cx="14" cy="20" r="1.6" fill="currentColor" stroke="none" />
-  </svg>
-);
 
 const ArrowRight = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -100,7 +93,7 @@ function relTime(iso) {
 }
 
 export default function Dashboard() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile } = useAuth();
   const toast = useToast();
 
   const [keyword, setKeyword] = useState('');
@@ -270,32 +263,7 @@ export default function Dashboard() {
 
   return (
     <div className="app-shell">
-      <header className="app-nav">
-        <div className="app-nav-inner">
-          <Link to="/app" className="app-brand">
-            <span className="brand-mark"><Logo /></span>
-            <span className="brand-wm">bylined</span>
-          </Link>
-          <nav className="app-nav-links">
-            <Link to="/app">Articles</Link>
-            <Link to="/app/sites">Sites</Link>
-            <Link to="/app/voice">Voice</Link>
-            <Link to="/app/usage">Usage</Link>
-            <Link to="/app/billing">Billing</Link>
-          </nav>
-          <div className="app-nav-user">
-            {activeSub && (
-              <span className="mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                {activeSub.articles_used_this_period}/{activeSub.articles_quota} this period
-              </span>
-            )}
-            <Link to="/app/settings" className="app-nav-email">{user?.email}</Link>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppNav activeSub={activeSub} />
 
       <main className="app-main">
         <div className="app-container">

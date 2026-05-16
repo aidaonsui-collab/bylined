@@ -13,19 +13,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
+import AppNav from '../components/AppNav.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import PublishControls from '../components/PublishControls.jsx';
 import { regenerateArticle } from '../lib/jobs.js';
 import { renderArticle } from '../lib/renderArticle.js';
-
-const Logo = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 4 L8 12 L14 20" />
-    <circle cx="14" cy="4" r="1.6" fill="currentColor" stroke="none" />
-    <circle cx="14" cy="20" r="1.6" fill="currentColor" stroke="none" />
-  </svg>
-);
 
 function StatusChip({ status }) {
   const map = {
@@ -149,27 +142,7 @@ export default function ArticleDetail() {
 
   return (
     <div className="app-shell">
-      <header className="app-nav">
-        <div className="app-nav-inner">
-          <Link to="/app" className="app-brand">
-            <span className="brand-mark"><Logo /></span>
-            <span className="brand-wm">bylined</span>
-          </Link>
-          <nav className="app-nav-links">
-            <Link to="/app">Articles</Link>
-            <Link to="/app/sites">Sites</Link>
-            <Link to="/app/voice">Voice</Link>
-            <Link to="/app/usage">Usage</Link>
-            <Link to="/app/billing">Billing</Link>
-          </nav>
-          <div className="app-nav-user">
-            <Link to="/app/settings" className="app-nav-email">{user?.email}</Link>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppNav />
 
       <main className="app-main">
         <div className="app-container" style={{ maxWidth: 760 }}>

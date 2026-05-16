@@ -37,6 +37,32 @@
     });
   })();
 
+// ─── Mobile nav: hamburger toggle ───────────────────────────────────
+  (() => {
+    const burger = document.querySelector('[data-mkt-burger]');
+    const panel = document.querySelector('[data-mkt-panel]');
+    if (!burger || !panel) return;
+
+    const setOpen = (open) => {
+      burger.classList.toggle('is-open', open);
+      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      panel.classList.toggle('is-open', open);
+      panel.hidden = !open;
+      document.body.style.overflow = open ? 'hidden' : '';
+    };
+
+    burger.addEventListener('click', () => {
+      setOpen(!panel.classList.contains('is-open'));
+    });
+    panel.querySelectorAll('a').forEach((a) =>
+      a.addEventListener('click', () => setOpen(false)),
+    );
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && panel.classList.contains('is-open')) setOpen(false);
+    });
+  })();
+
 // ─── Hero demo: cite/receipt hover + pin + connecting line ─────────
   const demo = document.getElementById('hero-demo');
   if (demo) {
