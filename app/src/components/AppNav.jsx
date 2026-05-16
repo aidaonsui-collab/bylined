@@ -74,6 +74,10 @@ export default function AppNav({ activeSub }) {
         </button>
       </div>
 
+      {open && (
+        <div className="app-nav-scrim" onClick={() => setOpen(false)} aria-hidden="true" />
+      )}
+
       <div
         id="app-nav-panel"
         className={`app-nav-panel ${open ? 'is-open' : ''}`}
@@ -103,10 +107,6 @@ export default function AppNav({ activeSub }) {
           </button>
         </div>
       </div>
-
-      {open && (
-        <div className="app-nav-scrim" onClick={() => setOpen(false)} aria-hidden="true" />
-      )}
     </header>
   );
 }

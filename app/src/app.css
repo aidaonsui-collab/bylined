@@ -284,11 +284,21 @@
 /* ── Mobile drop-down panel ── */
 .app-nav-panel {
   display: none;
+  position: fixed;
+  top: 60px; left: 0; right: 0;
+  z-index: 2;
   border-top: 1px solid var(--border);
   background: var(--bg);
   padding: 16px 20px 20px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  animation: app-panel-in 180ms ease-out;
 }
 .app-nav-panel.is-open { display: block; }
+@keyframes app-panel-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .app-nav-panel-quota {
   display: flex; justify-content: space-between; align-items: baseline;
   padding: 12px 14px;
@@ -333,7 +343,7 @@
 .app-nav-scrim {
   position: fixed; inset: 60px 0 0 0;
   background: rgba(0, 0, 0, 0.4);
-  z-index: 20;
+  z-index: 1;
   animation: app-scrim-in 180ms ease-out;
 }
 @keyframes app-scrim-in {
