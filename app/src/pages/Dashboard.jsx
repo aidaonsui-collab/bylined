@@ -102,6 +102,12 @@ export default function Dashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [articles, setArticles] = useState([]);
+  // Separate slim fetch for the dashboard cards — last 30 days of
+  // scores so the gauges reflect the actual window even when the
+  // recent-list pagination is at its first page.
+  const [metricsArticles, setMetricsArticles] = useState([]);
+  // How many rows to show in the Recent list. Bumped by "Load more".
+  const [articleLimit, setArticleLimit] = useState(20);
   const [subscription, setSubscription] = useState(null);
   const [sites, setSites] = useState([]);
   const [voices, setVoices] = useState([]);
@@ -120,40 +126,51 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) return;
-    const [jobsRes, articlesRes, subRes, sitesRes, voicesRes] = await Promise.all([
-      supabase
-        .from('jobs')
-        .select('id, keyword, status, error, created_at, completed_at, article_id')
-        .order('created_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('articles')
-        .select('id, keyword, title, meta_description, body_markdown, pass_rate, aeo_score, voice_match_score, status, generated_at, receipts, cms_post_url, cms_post_id, site_id, published_at')
-        .order('generated_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('subscriptions')
-        .select('plan, status, articles_used_this_period, articles_quota, current_period_end')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('sites')
-        .select('id, name, cms_type, is_active')
-        .eq('is_active', true)
-        .order('name'),
-      supabase
-        .from('voices')
-        .select('id, source_url, created_at')
-        .order('created_at', { ascending: false }),
-    ]);
+    const thirtyDaysAgo = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const [jobsRes, articlesRes, metricsRes, subRes, sitesRes, voicesRes] =
+      await Promise.all([
+        supabase
+          .from('jobs')
+          .select('id, keyword, status, error, created_at, completed_at, article_id')
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('articles')
+          .select('id, keyword, title, meta_description, body_markdown, pass_rate, aeo_score, voice_match_score, status, generated_at, receipts, cms_post_url, cms_post_id, site_id, published_at')
+          .order('generated_at', { ascending: false })
+          .limit(articleLimit),
+        supabase
+          .from('articles')
+          .select('id, status, pass_rate, aeo_score, voice_match_score, generated_at')
+          .gte('generated_at', thirtyDaysAgo)
+          .order('generated_at', { ascending: false })
+          .limit(500),
+        supabase
+          .from('subscriptions')
+          .select('plan, status, articles_used_this_period, articles_quota, current_period_end')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('sites')
+          .select('id, name, cms_type, is_active')
+          .eq('is_active', true)
+          .order('name'),
+        supabase
+          .from('voices')
+          .select('id, source_url, created_at')
+          .order('created_at', { ascending: false }),
+      ]);
     setJobs(jobsRes.data ?? []);
     setArticles(articlesRes.data ?? []);
+    setMetricsArticles(metricsRes.data ?? []);
     setSubscription(subRes.data ?? null);
     setSites(sitesRes.data ?? []);
     setVoices(voicesRes.data ?? []);
-  }, [user]);
+  }, [user, articleLimit]);
 
   useEffect(() => {
     load();
@@ -293,7 +310,7 @@ export default function Dashboard() {
           {activeSub && (
             <DashboardOverview
               activeSub={activeSub}
-              articles={articles}
+              articles={metricsArticles}
               jobs={jobs}
               sites={sites}
               voices={voices}
@@ -471,6 +488,17 @@ export default function Dashboard() {
                     toast={toast}
                   />
                 ))}
+              </div>
+            )}
+            {articles.length >= articleLimit && (
+              <div style={{ marginTop: 16, textAlign: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => setArticleLimit((n) => n + 20)}
+                >
+                  Load more
+                </button>
               </div>
             )}
           </div>
