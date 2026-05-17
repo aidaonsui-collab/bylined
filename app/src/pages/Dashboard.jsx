@@ -68,6 +68,10 @@ export default function Dashboard() {
   const [subscription, setSubscription] = useState(null);
   const [sites, setSites] = useState([]);
   const [voices, setVoices] = useState([]);
+  // Per-voice quality aggregates from the voice_strengths view
+  // (security-invoker, RLS-scoped). Keyed by voice_id so KeywordForm
+  // can show a strength chip next to each dropdown option.
+  const [voiceStrengths, setVoiceStrengths] = useState({});
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) return;
@@ -137,6 +141,16 @@ export default function Dashboard() {
     setSubscription(subRes.data ?? null);
     setSites(sitesRes.data ?? []);
     setVoices(voicesRes.data ?? []);
+
+    // Separate fetch — voice_strengths is a view, can't be batched
+    // into the Promise.all above without an awkward shape change.
+    // Cheap query (1 row per voice), so a serial call is fine.
+    const { data: strengthRows } = await supabase
+      .from('voice_strengths')
+      .select('voice_id, articles_scored, avg_voice_match');
+    const byId = {};
+    for (const s of strengthRows ?? []) byId[s.voice_id] = s;
+    setVoiceStrengths(byId);
   }, [user, articleLimit]);
 
   useEffect(() => {
@@ -420,6 +434,7 @@ export default function Dashboard() {
             setDripOverMonth={setDripOverMonth}
             dripDays={DRIP_DAYS}
             voices={voices}
+            voiceStrengths={voiceStrengths}
             sites={sites}
             submitting={submitting}
             canSubmit={canSubmit}

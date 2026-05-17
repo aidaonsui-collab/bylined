@@ -17,6 +17,7 @@ import AppNav from '../components/AppNav.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import { extractVoiceFingerprint } from '../lib/sites.js';
+import { fetchVoiceSuggestions, voiceStrength } from '../lib/suggestVoices.js';
 
 const Plus = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -56,21 +57,64 @@ export default function Voice() {
   const { user, signOut } = useAuth();
   const toast = useToast();
   const [voices, setVoices] = useState([]);
+  const [strengthsById, setStrengthsById] = useState({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [prefilledUrl, setPrefilledUrl] = useState('');
   const [openId, setOpenId] = useState(null);
+  // Suggested voices panel state.
+  const [suggestions, setSuggestions] = useState(null);
+  const [suggestionsError, setSuggestionsError] = useState(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestContext, setSuggestContext] = useState('');
 
   const load = async () => {
     if (!isSupabaseConfigured || !user) {
       setLoading(false);
       return;
     }
-    const { data } = await supabase
-      .from('voices')
-      .select('id, source_url, fingerprint, created_at, updated_at')
-      .order('created_at', { ascending: false });
-    setVoices(data ?? []);
+    // Pull voices + the per-voice strength aggregate in parallel.
+    // Strengths come from a SECURITY INVOKER view that joins
+    // jobs+articles, so RLS scopes the result by user automatically.
+    const [{ data: voiceRows }, { data: strengthRows }] = await Promise.all([
+      supabase
+        .from('voices')
+        .select('id, source_url, fingerprint, created_at, updated_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('voice_strengths')
+        .select('voice_id, articles_scored, avg_voice_match, last_used_at'),
+    ]);
+    setVoices(voiceRows ?? []);
+    const byId = {};
+    for (const s of strengthRows ?? []) byId[s.voice_id] = s;
+    setStrengthsById(byId);
     setLoading(false);
+  };
+
+  const loadSuggestions = async () => {
+    setLoadingSuggestions(true);
+    setSuggestionsError(null);
+    const result = await fetchVoiceSuggestions({
+      context: suggestContext,
+      count: 12,
+    });
+    setLoadingSuggestions(false);
+    if (!result.ok) {
+      setSuggestionsError(result.error || 'Failed to fetch suggestions.');
+      return;
+    }
+    setSuggestions(result.suggestions || []);
+  };
+
+  const handleExtractSuggestion = (url) => {
+    setPrefilledUrl(url);
+    setShowForm(true);
+    // Smooth scroll to the form so the user sees what's happening.
+    setTimeout(() => {
+      const el = document.getElementById('voice-extract-form');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
   };
 
   useEffect(() => {
@@ -108,25 +152,161 @@ export default function Voice() {
           </p>
 
           {!showForm && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ marginTop: 24 }}
-              onClick={() => setShowForm(true)}
-            >
-              <Plus /> Extract a new voice
-            </button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setPrefilledUrl('');
+                  setShowForm(true);
+                }}
+              >
+                <Plus /> Extract a new voice
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={loadSuggestions}
+                disabled={loadingSuggestions}
+                title="Brainstorm brand voices to extract from"
+              >
+                {loadingSuggestions
+                  ? 'Brainstorming…'
+                  : suggestions
+                  ? 'Refresh ideas ↻'
+                  : 'Suggest voices ✦'}
+              </button>
+            </div>
           )}
 
           {showForm && (
-            <ExtractForm
-              onCancel={() => setShowForm(false)}
-              onCreated={() => {
-                setShowForm(false);
-                load();
+            <div id="voice-extract-form">
+              <ExtractForm
+                initialUrl={prefilledUrl}
+                onCancel={() => {
+                  setShowForm(false);
+                  setPrefilledUrl('');
+                }}
+                onCreated={() => {
+                  setShowForm(false);
+                  setPrefilledUrl('');
+                  load();
+                }}
+                toast={toast}
+              />
+            </div>
+          )}
+
+          {suggestionsError && (
+            <div
+              role="alert"
+              style={{
+                marginTop: 16,
+                background: 'rgba(245,200,66,0.10)',
+                border: '1px solid rgba(245,200,66,0.20)',
+                color: 'var(--warn)',
+                padding: '10px 12px',
+                borderRadius: 8,
+                fontSize: 13.5,
               }}
-              toast={toast}
-            />
+            >
+              {suggestionsError}
+            </div>
+          )}
+
+          {suggestions && (
+            <div className="app-callout" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 14, marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <div className="eyebrow">Suggested voices</div>
+                  <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', margin: '4px 0 0' }}>
+                    Click a card to pre-fill the extraction form. Each takes 30–60s to extract.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setSuggestions(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {suggestions.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+                    No fresh ideas this round — try refining the goal hint and refreshing.
+                  </div>
+                ) : (
+                  suggestions.map((s, i) => (
+                    <div
+                      key={`${s.url}-${i}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        gap: 12,
+                        padding: '10px 12px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <strong style={{ color: 'var(--fg)' }}>{s.brand_name}</strong>
+                          <a
+                            href={s.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mono"
+                            style={{ fontSize: 11.5, color: 'var(--fg-subtle)' }}
+                          >
+                            {s.url} ↗
+                          </a>
+                        </div>
+                        {s.style_descriptor && (
+                          <div style={{ fontSize: 12.5, color: 'var(--fg-muted)', marginTop: 2 }}>
+                            {s.style_descriptor}
+                          </div>
+                        )}
+                        {s.why_fit && (
+                          <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4, fontStyle: 'italic' }}>
+                            {s.why_fit}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => handleExtractSuggestion(s.url)}
+                        style={{ alignSelf: 'flex-start' }}
+                      >
+                        Extract
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', borderTop: '1px dashed var(--border)', paddingTop: 12 }}>
+                <input
+                  className="input"
+                  type="text"
+                  value={suggestContext}
+                  onChange={(e) => setSuggestContext(e.target.value)}
+                  placeholder="Optional: refine the goal (e.g. 'b2b saas thought leadership')"
+                  style={{ flex: 1, height: 32, fontSize: 13 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={loadSuggestions}
+                  disabled={loadingSuggestions}
+                >
+                  {loadingSuggestions ? '…' : 'Re-brainstorm'}
+                </button>
+              </div>
+            </div>
           )}
 
           <div style={{ marginTop: 40 }}>
@@ -146,6 +326,7 @@ export default function Voice() {
                   <VoiceRow
                     key={v.id}
                     voice={v}
+                    strength={strengthsById[v.id]}
                     isOpen={openId === v.id}
                     onToggle={() => setOpenId(openId === v.id ? null : v.id)}
                     onDelete={() => handleDelete(v)}
@@ -160,10 +341,15 @@ export default function Voice() {
   );
 }
 
-function ExtractForm({ onCancel, onCreated, toast }) {
-  const [url, setUrl] = useState('');
+function ExtractForm({ initialUrl = '', onCancel, onCreated, toast }) {
+  const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+
+  // Keep the input in sync when a suggestion pre-fills the URL.
+  useEffect(() => {
+    if (initialUrl) setUrl(initialUrl);
+  }, [initialUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -243,12 +429,17 @@ function ExtractForm({ onCancel, onCreated, toast }) {
   );
 }
 
-function VoiceRow({ voice, isOpen, onToggle, onDelete }) {
+function VoiceRow({ voice, strength, isOpen, onToggle, onDelete }) {
   const fp = voice.fingerprint ?? {};
   const traits = fp.voice_traits ?? [];
   const phrases = fp.signature_phrases ?? [];
   const taboo = fp.taboo ?? [];
   const pages = fp.pages_analyzed ?? [];
+  const badge = voiceStrength({
+    avgVoiceMatch: strength?.avg_voice_match,
+    pages: pages.length,
+    articlesScored: strength?.articles_scored ?? 0,
+  });
 
   return (
     <div className="app-tile" style={{ padding: 16 }}>
@@ -270,13 +461,25 @@ function VoiceRow({ voice, isOpen, onToggle, onDelete }) {
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, color: 'var(--fg)' }}>
-            {voice.source_url}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: 'var(--fg)' }}>
+              {voice.source_url}
+            </span>
+            <StrengthBadge badge={badge} />
           </div>
           <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>
             {pages.length} page{pages.length === 1 ? '' : 's'} analysed ·{' '}
             {relTime(voice.created_at)}
             {fp.technical_level ? ` · ${fp.technical_level}` : ''}
+            {strength?.articles_scored > 0 && (
+              <>
+                {' · '}
+                <span className="mono">
+                  {strength.articles_scored} article{strength.articles_scored === 1 ? '' : 's'} scored, avg{' '}
+                  {strength.avg_voice_match}
+                </span>
+              </>
+            )}
           </div>
         </div>
         <ChevronDown size={14} open={isOpen} />
@@ -357,5 +560,49 @@ function ChipRow({ items, warn }) {
         </span>
       ))}
     </div>
+  );
+}
+
+// Small inline tag rendering the voice-quality grade. Color tone
+// follows the strength bucket — "good" maps to the accent, "warn" to
+// amber, "bad" to red. Numeric score shows on the right when present.
+function StrengthBadge({ badge }) {
+  if (!badge) return null;
+  const colorByTone = {
+    good: { bg: 'var(--accent-faint)', fg: 'var(--accent-text)', border: 'var(--accent-faint)' },
+    warn: { bg: 'rgba(245,200,66,0.10)', fg: 'var(--warn)', border: 'rgba(245,200,66,0.30)' },
+    bad: { bg: 'rgba(255,99,99,0.10)', fg: 'var(--danger)', border: 'rgba(255,99,99,0.30)' },
+    neutral: { bg: 'var(--surface-2)', fg: 'var(--fg-muted)', border: 'var(--border)' },
+  };
+  const c = colorByTone[badge.tone] || colorByTone.neutral;
+  return (
+    <span
+      title={
+        badge.score != null
+          ? `Average voice_match_score across articles using this voice: ${badge.score}/100`
+          : 'No articles scored against this voice yet'
+      }
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        height: 20,
+        padding: '0 8px',
+        borderRadius: 999,
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        color: c.fg,
+        fontSize: 10.5,
+        fontWeight: 600,
+        letterSpacing: 0.02,
+      }}
+    >
+      <span>{badge.label}</span>
+      {badge.score != null && (
+        <span className="mono" style={{ fontSize: 10.5, opacity: 0.85 }}>
+          {badge.score}
+        </span>
+      )}
+    </span>
   );
 }

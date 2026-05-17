@@ -34,6 +34,7 @@ import { mockVisibilityHistory, VISIBILITY_MAX_PER_WEEK } from '../lib/mockVisib
 import { renderArticle } from '../lib/renderArticle.js';
 import { cancelScheduledJob, regenerateArticle, retryJob } from '../lib/jobs.js';
 import { fetchKeywordSuggestions } from '../lib/suggestKeywords.js';
+import { voiceStrength } from '../lib/suggestVoices.js';
 import PublishControls from './PublishControls.jsx';
 
 const ACCENT = {
@@ -985,6 +986,7 @@ export function KeywordForm({
   setDripOverMonth,
   dripDays = 30,
   voices,
+  voiceStrengths = {},
   sites,
   submitting,
   canSubmit,
@@ -1173,11 +1175,26 @@ export function KeywordForm({
               style={S.kw.select}
             >
               <option value="">No voice (generic style)</option>
-              {voices.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {safeHostname(v.source_url)}
-                </option>
-              ))}
+              {voices.map((v) => {
+                const strength = voiceStrengths[v.id];
+                const badge = voiceStrength({
+                  avgVoiceMatch: strength?.avg_voice_match,
+                  pages: 0,
+                  articlesScored: strength?.articles_scored ?? 0,
+                });
+                // Build a compact label so the dropdown stays scannable.
+                // "animalz.co · Solid 68" or "linear.app · New".
+                const suffix = badge.score != null
+                  ? ` · ${badge.label} ${badge.score}`
+                  : badge.label !== '—'
+                  ? ` · ${badge.label}`
+                  : '';
+                return (
+                  <option key={v.id} value={v.id}>
+                    {safeHostname(v.source_url)}{suffix}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
