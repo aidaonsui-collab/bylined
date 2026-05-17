@@ -223,7 +223,9 @@ async function callMinimax(
 ): Promise<Suggestion[]> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
+    let res: Response;
+    try {
+      res = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${MINIMAX_API_KEY}`,
@@ -244,8 +246,25 @@ async function callMinimax(
         // per suggestion (brand + descriptor + why) × count + buffer.
         max_tokens: Math.min(4000 + count * 150, 9000),
       }),
-      signal: AbortSignal.timeout(30_000),
-    });
+      // 60s timeout — M2.7's reasoning can stretch past 30s on the
+      // "suggest 12 real-world brand voices" prompt because it does
+      // a lot of "is this real?" deliberation. Edge function ceiling
+      // is 150s so this leaves headroom for both attempts.
+      signal: AbortSignal.timeout(60_000),
+      });
+    } catch (e) {
+      // AbortSignal.timeout throws a TimeoutError. Don't retry on
+      // timeout — the second attempt would just stretch the user's
+      // wait without much chance of finishing faster. Bail out with
+      // a clear, actionable error.
+      const name = e instanceof Error ? e.name : "";
+      if (name === "TimeoutError" || String(e).includes("timed out")) {
+        throw new Error(
+          "MiniMax took too long (>60s). The model gets stuck deliberating on large brand-voice prompts. Try again — it usually goes through on the second attempt.",
+        );
+      }
+      throw e;
+    }
 
     if (!res.ok) {
       throw new Error(`MiniMax HTTP ${res.status}: ${await res.text()}`);

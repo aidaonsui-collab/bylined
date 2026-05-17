@@ -142,14 +142,27 @@ export default function Voice() {
 
       <main className="app-main">
         <div className="app-container" style={{ maxWidth: 760 }}>
-          <div className="eyebrow" style={{ marginBottom: 14 }}>Voice</div>
-          <h1 className="app-h1 serif" style={{ fontSize: 44 }}>Brand voice</h1>
-          <p className="app-lede">
-            Drop a homepage URL. Bylined ingests several existing pages and
-            extracts a style fingerprint — tone, signature phrases, taboo
-            words, reading level. Attach a voice to a generation job and the
-            article comes out in that voice.
-          </p>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 24,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+              <div className="eyebrow" style={{ marginBottom: 14 }}>Voice</div>
+              <h1 className="app-h1 serif" style={{ fontSize: 44 }}>Brand voice</h1>
+              <p className="app-lede">
+                Drop a homepage URL. Bylined ingests several existing pages and
+                extracts a style fingerprint — tone, signature phrases, taboo
+                words, reading level. Attach a voice to a generation job and the
+                article comes out in that voice.
+              </p>
+            </div>
+            <StrengthLegend />
+          </div>
 
           {!showForm && (
             <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
@@ -560,6 +573,76 @@ function ChipRow({ items, warn }) {
         </span>
       ))}
     </div>
+  );
+}
+
+// Small reference card explaining what the strength badges mean.
+// Lives in the top-right of the Voice page so users can decode the
+// chips on each voice row without guessing.
+function StrengthLegend() {
+  const tiers = [
+    { label: 'Strong', range: '75+', tone: 'good' },
+    { label: 'Solid', range: '60–74', tone: 'good' },
+    { label: 'Weak', range: '40–59', tone: 'warn' },
+    { label: 'Off-voice', range: '<40', tone: 'bad' },
+    { label: 'New', range: 'no data', tone: 'neutral' },
+  ];
+  return (
+    <aside
+      style={{
+        flex: '0 0 auto',
+        minWidth: 200,
+        padding: '12px 14px',
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        boxShadow: 'var(--shadow-card)',
+      }}
+      aria-label="Voice strength tiers"
+    >
+      <div
+        className="eyebrow"
+        style={{ fontSize: 10, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
+        <span>Strength tiers</span>
+        <span className="mono" style={{ fontSize: 9, color: 'var(--fg-faint)', textTransform: 'none', letterSpacing: 0 }}>
+          / 100
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {tiers.map((t) => (
+          <div
+            key={t.label}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <StrengthBadge badge={{ label: t.label, score: null, tone: t.tone }} />
+            <span
+              className="mono"
+              style={{ fontSize: 10.5, color: 'var(--fg-subtle)' }}
+            >
+              {t.range}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--fg-subtle)',
+          lineHeight: 1.4,
+          marginTop: 10,
+          paddingTop: 8,
+          borderTop: '1px dashed var(--border)',
+        }}
+      >
+        Score = average <span className="mono">voice_match</span> across articles using this voice.
+      </div>
+    </aside>
   );
 }
 
