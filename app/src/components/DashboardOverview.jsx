@@ -92,9 +92,7 @@ export default function DashboardOverview({
 
   const openCount = tasks.filter((t) => t.count > 0).length;
 
-  const activeVoiceName = voices?.[0]?.source_url
-    ? new URL(voices[0].source_url).hostname.replace(/^www\./, '')
-    : null;
+  const activeVoiceLabel = formatVoiceLabel(voices, sites);
   const activeSiteName = sites?.[0]?.name ?? sites?.[0]?.domain ?? null;
   const nextRunHrs = nextScheduledHours(jobs);
 
@@ -109,8 +107,8 @@ export default function DashboardOverview({
         />
         <StatusItem
           label="Brand voice"
-          tone={activeVoiceName ? 'on' : 'warn'}
-          value={activeVoiceName ?? 'Not set'}
+          tone={activeVoiceLabel ? 'on' : 'warn'}
+          value={activeVoiceLabel ?? 'Not set'}
         />
         <StatusItem
           label="Connected site"
@@ -299,4 +297,43 @@ function nextScheduledHours(jobs) {
   const ageMs = Date.now() - new Date(queued.created_at).getTime();
   const hrs = Math.max(0, Math.round(24 - ageMs / (1000 * 60 * 60)));
   return hrs;
+}
+
+// Known editorial domains that customers commonly point a voice at — we
+// show a friendlier label than the bare hostname. Extend as needed.
+const KNOWN_VOICE_SOURCES = {
+  'stripe.com': 'Stripe blog',
+  'animalz.co': 'Animalz blog',
+  'lennysnewsletter.com': 'Lenny’s Newsletter',
+  'stratechery.com': 'Stratechery',
+  'ahrefs.com': 'Ahrefs blog',
+  'backlinko.com': 'Backlinko',
+  'hubspot.com': 'HubSpot blog',
+  'paulgraham.com': 'Paul Graham essays',
+};
+
+// Build a "Brand voice" status-tile label. If the voice source matches one
+// of the customer's connected sites we treat it as their own brand; if it
+// doesn't, we tag it "(example)" so customers don't mistake a borrowed
+// style reference for their own.
+function formatVoiceLabel(voices, sites) {
+  const src = voices?.[0]?.source_url;
+  if (!src) return null;
+  let host;
+  try {
+    host = new URL(src).hostname.replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+  const friendly = KNOWN_VOICE_SOURCES[host] ?? `${host} blog`;
+  const siteHosts = (sites ?? [])
+    .map((s) => {
+      if (!s.domain) return null;
+      try { return new URL(s.domain.startsWith('http') ? s.domain : `https://${s.domain}`)
+        .hostname.replace(/^www\./, ''); }
+      catch { return null; }
+    })
+    .filter(Boolean);
+  const isOwnSite = siteHosts.includes(host);
+  return isOwnSite ? friendly : `${friendly} (example)`;
 }
