@@ -251,7 +251,22 @@ export default function Voice() {
                     No fresh ideas this round — try refining the goal hint and refreshing.
                   </div>
                 ) : (
-                  suggestions.map((s, i) => (
+                  suggestions.map((s, i) => {
+                    // Predicted fit → same tier system as extracted
+                    // voices, but tagged "fit · X" so users know it's
+                    // a prediction not a measured score. Pass
+                    // articlesScored: 1 so the helper returns a tier
+                    // instead of "New".
+                    const fitBadge = typeof s.fit_score === 'number'
+                      ? (() => {
+                          const b = voiceStrength({
+                            avgVoiceMatch: s.fit_score,
+                            articlesScored: 1,
+                          });
+                          return { ...b, label: `fit · ${b.label}` };
+                        })()
+                      : null;
+                    return (
                     <div
                       key={`${s.url}-${i}`}
                       style={{
@@ -267,6 +282,7 @@ export default function Voice() {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <strong style={{ color: 'var(--fg)' }}>{s.brand_name}</strong>
+                          {fitBadge && <StrengthBadge badge={fitBadge} />}
                           <a
                             href={s.url}
                             target="_blank"
@@ -297,7 +313,8 @@ export default function Voice() {
                         Extract
                       </button>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 

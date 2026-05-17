@@ -44,6 +44,11 @@ interface Suggestion {
   brand_name: string;
   style_descriptor: string;
   why_fit: string;
+  // 0-100 — model's predicted "if extracted, what voice_match would
+  // articles using this voice score?" Frontend maps this through the
+  // same voiceStrength() helper to render the same Strong/Solid/Weak
+  // badge as on already-extracted voices.
+  fit_score?: number;
 }
 
 interface VoiceFingerprint {
@@ -200,11 +205,16 @@ For each suggestion provide:
 - "brand_name": short human name (e.g. "Stripe Press", "Every", "First Round Review")
 - "style_descriptor": 5-10 words capturing the voice (e.g. "long-form analytical with founder anecdotes")
 - "why_fit": one sentence on why this fits the user's goal
+- "fit_score": integer 0-100. Predict how closely articles generated against this voice would match the user's CURRENT REFERENCE VOICE on tone, structure, and reader level. Score honestly — be willing to give 50s and 60s; not every pick should score 80+. Rough rubric:
+  - 85-100: near-twin of the reference voice; same tone, audience, content shapes
+  - 70-84: same family, slightly different angle (e.g. similar tone, different vertical)
+  - 50-69: useful adjacent voice but the generator would need to bridge real gaps
+  - <50: stretch pick, included for diversity — flag honestly so the user can see it's a sidestep
 
 Return JSON ONLY:
 {
   "suggestions": [
-    { "url": "...", "brand_name": "...", "style_descriptor": "...", "why_fit": "..." }
+    { "url": "...", "brand_name": "...", "style_descriptor": "...", "why_fit": "...", "fit_score": 78 }
   ]
 }`;
 }
@@ -306,6 +316,10 @@ async function callMinimax(
                 ? s.style_descriptor.trim()
                 : "",
             why_fit: typeof s.why_fit === "string" ? s.why_fit.trim() : "",
+            fit_score:
+              typeof s.fit_score === "number" && Number.isFinite(s.fit_score)
+                ? Math.max(0, Math.min(100, Math.round(s.fit_score)))
+                : undefined,
           }));
       }
       lastError = new Error("JSON missing 'suggestions' array");
