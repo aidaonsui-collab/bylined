@@ -30,6 +30,7 @@ import {
   computeTasks,
   healthNote,
   pickOrgName,
+  formatVoiceLabel,
 } from '../components/EditorialDashboard.jsx';
 
 const POLL_MS = 4000;
@@ -209,7 +210,9 @@ export default function Dashboard() {
     return Math.round(parts.reduce((s, v) => s + v, 0) / parts.length);
   }, [healthBreakdown]);
 
-  // Strip metadata.
+  // Strip metadata. voiceHost is the bare domain (used by the
+  // visibility chart's "your domain" copy); voiceLabel is the
+  // human-readable form for the status tile.
   const voiceHost = useMemo(() => {
     if (!voices?.[0]?.source_url) return null;
     try {
@@ -218,6 +221,7 @@ export default function Dashboard() {
       return null;
     }
   }, [voices]);
+  const voiceLabel = useMemo(() => formatVoiceLabel(voices, sites), [voices, sites]);
   const siteName = sites?.[0]?.name ?? null;
   const nextRunHours = useMemo(() => {
     const queued = jobs.find((j) => j.status === 'queued' || j.status === 'running');
@@ -311,6 +315,7 @@ export default function Dashboard() {
         <StatusStrip
           recentArticleCount={recentMetrics.length}
           voiceHost={voiceHost}
+          voiceLabel={voiceLabel}
           siteName={siteName}
           nextRunHours={nextRunHours}
           jobsQueued={jobsQueued}

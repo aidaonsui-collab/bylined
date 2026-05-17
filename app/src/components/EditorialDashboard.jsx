@@ -286,12 +286,16 @@ export function TrialBanner({ activeSub }) {
 export function StatusStrip({
   recentArticleCount,
   voiceHost,
+  voiceLabel,
   siteName,
   nextRunHours,
   jobsQueued,
   quotaUsed,
   quotaTotal,
 }) {
+  // Prefer the friendly label; fall back to the bare host for older
+  // callers that haven't been updated yet.
+  const voiceDisplay = voiceLabel || voiceHost || null;
   const items = [
     {
       label: 'Publishing',
@@ -301,9 +305,9 @@ export function StatusStrip({
     },
     {
       label: 'Brand voice',
-      value: voiceHost || 'Not set',
-      sub: voiceHost ? 'fingerprint locked' : 'extract one',
-      live: !!voiceHost,
+      value: voiceDisplay || 'Not set',
+      sub: voiceDisplay ? 'fingerprint locked' : 'extract one',
+      live: !!voiceDisplay,
     },
     {
       label: 'Connected site',
@@ -1645,6 +1649,43 @@ export function pickOrgName({ user, voices, sites }) {
     return user.email.split('@')[0];
   }
   return null;
+}
+
+// Known editorial domains we map to friendly tile labels. The status
+// strip needs to read like a person, not a hostname — "Animalz blog"
+// instead of "animalz.co". Extend the table as customers pick new
+// reference voices.
+const KNOWN_VOICE_SOURCES = {
+  'stripe.com': 'Stripe blog',
+  'animalz.co': 'Animalz blog',
+  'lennysnewsletter.com': 'Lenny’s Newsletter',
+  'stratechery.com': 'Stratechery',
+  'every.to': 'Every',
+  'notboring.co': 'Not Boring',
+  'ahrefs.com': 'Ahrefs blog',
+  'backlinko.com': 'Backlinko',
+  'hubspot.com': 'HubSpot blog',
+  'paulgraham.com': 'Paul Graham essays',
+};
+
+// Format the active voice for the "Brand voice" status tile. If the
+// voice's hostname doesn't match any of the customer's connected
+// sites, append "(example)" so a borrowed style reference isn't
+// mistaken for their own brand voice.
+export function formatVoiceLabel(voices, sites) {
+  const src = voices?.[0]?.source_url;
+  if (!src) return null;
+  const host = safeHostname(src);
+  if (!host) return null;
+  const friendly = KNOWN_VOICE_SOURCES[host] ?? `${host} blog`;
+  const siteHosts = (sites ?? [])
+    .map((s) => {
+      if (!s.domain) return null;
+      const url = s.domain.startsWith('http') ? s.domain : `https://${s.domain}`;
+      return safeHostname(url);
+    })
+    .filter(Boolean);
+  return siteHosts.includes(host) ? friendly : `${friendly} (example)`;
 }
 
 // ─── Style objects (all in one place so the JSX stays readable) ──
