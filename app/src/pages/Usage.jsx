@@ -49,7 +49,12 @@ export default function Usage() {
   const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
+  // articles is the paginated table; metricsArticles is the full
+  // current-period set (slim columns) used for the headline counters
+  // so they don't quietly understate when the customer is past 25 rows.
   const [articles, setArticles] = useState([]);
+  const [metricsArticles, setMetricsArticles] = useState([]);
+  const [articleLimit, setArticleLimit] = useState(25);
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) {
@@ -57,11 +62,14 @@ export default function Usage() {
       return;
     }
 
-    // Active subscription — quota + period bounds.
+    // Active subscription — quota + period bounds. current_period_start
+    // is what scopes the article queries below: without it the page
+    // would silently show the last N articles across all periods,
+    // which was the previous bug.
     const { data: sub } = await supabase
       .from('subscriptions')
       .select(
-        'plan, status, articles_used_this_period, articles_quota, current_period_end'
+        'plan, status, articles_used_this_period, articles_quota, current_period_start, current_period_end'
       )
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -69,19 +77,37 @@ export default function Usage() {
       .maybeSingle();
     setSubscription(sub ?? null);
 
-    // Articles generated this period — RLS scopes to the calling user.
-    // We need title, status, pass_rate, citation receipts, publish info.
-    const { data: arts } = await supabase
-      .from('articles')
-      .select(
-        'id, title, keyword, status, pass_rate, receipts, cms_post_url, published_at, generated_at'
-      )
-      .order('generated_at', { ascending: false })
-      .limit(50);
-    setArticles(arts ?? []);
+    // Period boundary for both article queries. If the customer has no
+    // active subscription (free trial, expired plan) fall back to the
+    // last 30 days so the page isn't blank.
+    const periodStart =
+      sub?.current_period_start ??
+      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Two parallel article queries:
+    //   • full set (slim columns, cap 500) for the headline aggregates
+    //   • paginated set (full columns) for the table itself
+    const [metricsRes, listRes] = await Promise.all([
+      supabase
+        .from('articles')
+        .select('id, status, pass_rate, receipts, cms_post_url')
+        .gte('generated_at', periodStart)
+        .order('generated_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('articles')
+        .select(
+          'id, title, keyword, status, pass_rate, receipts, cms_post_url, published_at, generated_at'
+        )
+        .gte('generated_at', periodStart)
+        .order('generated_at', { ascending: false })
+        .limit(articleLimit),
+    ]);
+    setMetricsArticles(metricsRes.data ?? []);
+    setArticles(listRes.data ?? []);
 
     setLoading(false);
-  }, [user]);
+  }, [user, articleLimit]);
 
   useEffect(() => {
     load();
@@ -90,26 +116,27 @@ export default function Usage() {
   const articlesThisPeriod = subscription?.articles_used_this_period ?? 0;
   const quota = subscription?.articles_quota ?? 0;
 
-  // Aggregate citation pass rate across all articles (event-weighted by
-  // citation count, not article-weighted — one 50-cite article matters
-  // more than one 3-cite article).
+  // Aggregate citation pass rate across all current-period articles
+  // (event-weighted by citation count, not article-weighted — one
+  // 50-cite article matters more than one 3-cite article).
   const citationStats = useMemo(() => {
     let pass = 0;
     let total = 0;
-    for (const a of articles) {
+    for (const a of metricsArticles) {
       const cites = a.receipts ?? [];
       total += cites.length;
       pass += cites.filter((r) => r.verified).length;
     }
     return { pass, total, rate: total > 0 ? pass / total : null };
-  }, [articles]);
+  }, [metricsArticles]);
 
   const publishedCount = useMemo(
     () =>
-      articles.filter((a) => a.status === 'published' && a.cms_post_url)
+      metricsArticles.filter((a) => a.status === 'published' && a.cms_post_url)
         .length,
-    [articles]
+    [metricsArticles]
   );
+  const periodArticleCount = metricsArticles.length;
 
   return (
     <div className="app-shell">
@@ -153,11 +180,11 @@ export default function Usage() {
             />
             <SummaryCard
               label="Published live"
-              primary={`${publishedCount} of ${articles.length}`}
+              primary={`${publishedCount} of ${periodArticleCount}`}
               sub={
-                articles.length === 0
+                periodArticleCount === 0
                   ? '—'
-                  : publishedCount === articles.length
+                  : publishedCount === periodArticleCount
                     ? 'everything is live'
                     : 'the rest are drafts'
               }
@@ -256,6 +283,18 @@ export default function Usage() {
                 </table>
               </div>
             )}
+            {articles.length >= articleLimit &&
+              articles.length < periodArticleCount && (
+                <div style={{ marginTop: 14, textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setArticleLimit((n) => n + 25)}
+                  >
+                    Load more ({periodArticleCount - articles.length} remaining)
+                  </button>
+                </div>
+              )}
             <p className="app-fineprint" style={{ marginTop: 14, fontSize: 12, color: 'var(--fg-subtle)' }}>
               Articles count toward your monthly quota the moment they're
               generated — drafts and published posts both count. Citations
