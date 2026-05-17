@@ -41,7 +41,10 @@ export interface ChatOptions {
 function getConfig() {
   const apiKey = process.env.MINIMAX_API_KEY;
   const baseUrl = process.env.MINIMAX_BASE_URL ?? "https://api.minimaxi.chat/v1";
-  const model = process.env.MINIMAX_MODEL ?? "MiniMax-Text-01";
+  // Default to MiniMax-M2.7 (the model the token plan actually
+  // covers in prod). Text-01 was an older default that 2026 token
+  // plans don't entitle. Override via MINIMAX_MODEL env if needed.
+  const model = process.env.MINIMAX_MODEL ?? "MiniMax-M2.7";
   if (!apiKey) {
     throw new Error("MINIMAX_API_KEY not set in env");
   }

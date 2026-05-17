@@ -17,7 +17,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const MINIMAX_API_KEY = Deno.env.get("MINIMAX_API_KEY")!;
 const MINIMAX_BASE_URL = Deno.env.get("MINIMAX_BASE_URL") ?? "https://api.minimaxi.chat/v1";
-const MINIMAX_MODEL = Deno.env.get("MINIMAX_MODEL") ?? "MiniMax-Text-01";
+// Default matches the model the engine's worker actually uses in
+// prod (MiniMax-M2.7). Text-01 was an older default that this token
+// plan doesn't entitle. Override via env if you switch plans.
+const MINIMAX_MODEL = Deno.env.get("MINIMAX_MODEL") ?? "MiniMax-M2.7";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -243,8 +246,11 @@ async function callMinimax(prompt: string, count: number): Promise<Suggestion[]>
           { role: "user", content: prompt },
         ],
         temperature: attempt === 0 ? 0.7 : 0.85,
-        // count * ~60 tokens (keyword + why) + JSON wrapping + reasoning headroom
-        max_tokens: Math.min(2000 + count * 60, 6000),
+        // M2.7 is a reasoning model — hidden CoT eats from max_tokens
+        // before any JSON gets emitted. Floor of 4000 leaves room for
+        // ~2000-3000 reasoning + JSON envelope (~50 tokens per item).
+        // Bumps to 8000 for larger counts to keep the cushion.
+        max_tokens: Math.min(4000 + count * 100, 8000),
       }),
       signal: AbortSignal.timeout(30_000),
     });
