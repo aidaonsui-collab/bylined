@@ -10,7 +10,7 @@
 // recent list. Polling, bulk submit, quota gates, regenerate/retry,
 // and PublishControls behavior are all preserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../store.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
@@ -130,6 +130,22 @@ export default function Dashboard() {
     const id = setInterval(load, POLL_MS);
     return () => clearInterval(id);
   }, [load]);
+
+  // Default the auto-publish dropdown to the user's first active site
+  // when sites first load. Without this, the form defaults to "None"
+  // and bulk submissions silently land as drafts — which surprised the
+  // user once already (May 17 bulk of 18 → all draft). The ref ensures
+  // we only apply the default once per session, so if the user
+  // explicitly clears it back to "None" we don't override on the next
+  // poll-driven sites refresh.
+  const sitesDefaultApplied = useRef(false);
+  useEffect(() => {
+    if (sitesDefaultApplied.current) return;
+    if (sites.length > 0 && autoPublishSiteId === '') {
+      setAutoPublishSiteId(sites[0].id);
+      sitesDefaultApplied.current = true;
+    }
+  }, [sites, autoPublishSiteId]);
 
   // ── derived ──
   const activeSub =
