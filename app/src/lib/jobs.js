@@ -61,3 +61,22 @@ export async function retryJob(jobId) {
   }
   return { ok: true };
 }
+
+// Remove a scheduled drip job that hasn't started yet. Plain DELETE
+// because the row never charged quota (quota only ticks on completion),
+// and keeping a 'cancelled' stub would just be visual noise in the
+// wire feed. Gated on status='queued' so we can't accidentally nuke
+// something already running. RLS scopes by user.
+export async function cancelScheduledJob(jobId) {
+  const { data, error } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('id', jobId)
+    .eq('status', 'queued')
+    .select('id');
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'Job already picked up by the worker.' };
+  }
+  return { ok: true };
+}

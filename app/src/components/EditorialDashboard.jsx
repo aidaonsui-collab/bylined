@@ -32,7 +32,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import { mockVisibilityHistory, VISIBILITY_MAX_PER_WEEK } from '../lib/mockVisibility.js';
 import { renderArticle } from '../lib/renderArticle.js';
-import { regenerateArticle, retryJob } from '../lib/jobs.js';
+import { cancelScheduledJob, regenerateArticle, retryJob } from '../lib/jobs.js';
 import PublishControls from './PublishControls.jsx';
 
 const ACCENT = {
@@ -980,6 +980,9 @@ export function KeywordForm({
   setAutoPublishSiteId,
   autoPublishLive,
   setAutoPublishLive,
+  dripOverMonth,
+  setDripOverMonth,
+  dripDays = 30,
   voices,
   sites,
   submitting,
@@ -993,6 +996,14 @@ export function KeywordForm({
 }) {
   const lines = keyword.split('\n').map((s) => s.trim()).filter(Boolean);
   const count = Math.min(lines.length, maxBulk);
+  // Drip is only meaningful with 2+ keywords (otherwise nothing to spread).
+  const dripEligible = count >= 2;
+  const dripActive = dripOverMonth && dripEligible;
+  // For preview copy: when N=count, last release lands at N-1 intervals.
+  const dripIntervalDays = dripActive ? dripDays / Math.max(count - 1, 1) : 0;
+  const dripLastDate = dripActive
+    ? new Date(Date.now() + (count - 1) * dripIntervalDays * 24 * 60 * 60 * 1000)
+    : null;
 
   return (
     <section style={S.kw.wrap}>
@@ -1089,6 +1100,42 @@ export function KeywordForm({
             </label>
           )}
 
+          {setDripOverMonth && (
+            <label
+              style={{
+                ...S.kw.checkRow,
+                opacity: dripEligible ? 1 : 0.5,
+                cursor: dripEligible ? 'pointer' : 'not-allowed',
+              }}
+              title={dripEligible ? '' : 'Drip needs 2+ keywords to spread'}
+            >
+              <input
+                type="checkbox"
+                checked={dripOverMonth}
+                onChange={(e) => setDripOverMonth(e.target.checked)}
+                style={{ accentColor: ACCENT.sig }}
+                disabled={submitting || !dripEligible}
+              />
+              <span style={{ fontSize: 13 }}>
+                Drip these over {dripDays} days
+                {dripActive && dripLastDate && (
+                  <span
+                    className="ed-mono"
+                    style={{
+                      display: 'block',
+                      fontSize: 10.5,
+                      color: 'var(--paper-faint)',
+                      marginTop: 2,
+                    }}
+                  >
+                    one every ~{formatInterval(dripIntervalDays)} · last lands{' '}
+                    {dripLastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+              </span>
+            </label>
+          )}
+
           <div style={S.kw.footer}>
             <div
               className="ed-mono"
@@ -1118,6 +1165,8 @@ export function KeywordForm({
                 ? 'Sending…'
                 : remaining === 0
                 ? 'Quota used'
+                : dripActive
+                ? `Schedule ${keywordCount} over ${dripDays}d →`
                 : keywordCount > 1
                 ? `Send ${keywordCount} to press →`
                 : 'Send to press →'}
@@ -1208,10 +1257,20 @@ export function RecentFeed({ rows, sites, userId, onChanged, toast, onLoadMore, 
 
 function FeedRow({ row, idx, isOpen, onToggle, sites, userId, onChanged, toast }) {
   const isArticle = row.kind === 'article';
+  // A queued job whose release_at is still in the future is a scheduled
+  // drip slot — treat it as its own status so the chip + timestamp
+  // make sense ("SCHEDULED · releases May 23" vs the generic QUEUED).
+  const isScheduled =
+    !isArticle &&
+    row.job.status === 'queued' &&
+    row.job.release_at &&
+    new Date(row.job.release_at).getTime() > Date.now();
   const status = isArticle
     ? row.article.status === 'published'
       ? 'published'
       : 'draft'
+    : isScheduled
+    ? 'scheduled'
     : row.job.status;
 
   const statusColor = (s) =>
@@ -1219,6 +1278,7 @@ function FeedRow({ row, idx, isOpen, onToggle, sites, userId, onChanged, toast }
       draft: 'var(--ed-warn)',
       published: ACCENT.sig,
       queued: 'var(--paper-mute)',
+      scheduled: 'var(--paper-dim)',
       running: ACCENT.sig,
       failed: 'var(--ed-fail)',
       completed: ACCENT.sig,
@@ -1229,13 +1289,20 @@ function FeedRow({ row, idx, isOpen, onToggle, sites, userId, onChanged, toast }
       draft: 'DRAFT',
       published: 'PUBLISHED',
       queued: 'QUEUED',
+      scheduled: 'SCHEDULED',
       running: 'ON PRESS',
       failed: 'KILLED',
       completed: 'DONE',
     }[s] || s.toUpperCase());
 
   const title = isArticle ? row.article.title || row.article.keyword : row.job.keyword;
-  const ts = isArticle ? relTime(row.article.generated_at) : relTime(row.job.created_at);
+  // For scheduled jobs, swap relative time with the future release date
+  // so the user can see when this particular slot fires.
+  const ts = isArticle
+    ? relTime(row.article.generated_at)
+    : isScheduled
+    ? releaseAtLabel(row.job.release_at, row.job.drip_position)
+    : relTime(row.job.created_at);
 
   return (
     <li
@@ -1322,6 +1389,31 @@ function FeedRow({ row, idx, isOpen, onToggle, sites, userId, onChanged, toast }
             }}
           >
             Retry
+          </button>
+        </div>
+      )}
+
+      {/* Cancel button for scheduled drip rows. Doesn't refund quota
+          because the row never charged — quota only ticks when a job
+          completes. UPDATE not DELETE so the row remains for history
+          (status='cancelled'). */}
+      {!isArticle && isScheduled && (
+        <div style={{ padding: '0 4px 14px' }}>
+          <button
+            type="button"
+            style={S.feed.minorBtn}
+            onClick={async () => {
+              if (!confirm(`Cancel scheduled keyword "${row.job.keyword}"?`)) return;
+              const result = await cancelScheduledJob(row.job.id);
+              if (!result.ok) {
+                toast(result.error || 'Cancel failed.', { tone: 'danger' });
+                return;
+              }
+              toast('Scheduled slot cancelled.', { tone: 'success' });
+              onChanged?.();
+            }}
+          >
+            Cancel
           </button>
         </div>
       )}
@@ -1501,6 +1593,15 @@ function safeHostname(url) {
   }
 }
 
+// Pretty-print a fractional-day interval for drip preview copy.
+// 1 → "1 day", 0.5 → "12h", 3.4 → "3.4 days", 0.04 → "1h".
+function formatInterval(days) {
+  if (!Number.isFinite(days) || days <= 0) return '—';
+  if (days >= 1) return `${days.toFixed(days >= 10 ? 0 : 1).replace(/\.0$/, '')} day${days >= 2 ? 's' : ''}`;
+  const hours = Math.max(1, Math.round(days * 24));
+  return `${hours}h`;
+}
+
 function relTime(iso) {
   if (!iso) return '';
   const ms = Date.now() - new Date(iso).getTime();
@@ -1513,6 +1614,24 @@ function relTime(iso) {
   const d = Math.floor(h / 24);
   if (d < 30) return `${d}d ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+// Future-time label for scheduled drip rows. Within 24h shows "in 6h",
+// further out shows "in 3d · Jun 17" so the user can see both the
+// horizon and the calendar date at once. Position prefix when known.
+function releaseAtLabel(iso, position) {
+  if (!iso) return '';
+  const target = new Date(iso).getTime();
+  const ms = target - Date.now();
+  const dateStr = new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const prefix = position ? `#${position} · ` : '';
+  if (ms <= 0) return `${prefix}due now`;
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${prefix}in ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${prefix}in ${hours}h · ${dateStr}`;
+  const days = Math.floor(hours / 24);
+  return `${prefix}in ${days}d · ${dateStr}`;
 }
 
 function monthLabel(iso) {

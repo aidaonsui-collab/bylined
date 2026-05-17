@@ -36,6 +36,11 @@ import {
 const POLL_MS = 4000;
 const WINDOW_DAYS = 30;
 const MAX_BULK = 50;
+// Drip duration when the user ticks "Drip over the month" on a bulk
+// paste. First row releases now, last row releases at +DRIP_DAYS days,
+// linear spacing in between. Lifted to module scope so the form
+// callout copy can show it without prop drilling magic numbers.
+const DRIP_DAYS = 30;
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -46,6 +51,11 @@ export default function Dashboard() {
   const [voiceId, setVoiceId] = useState('');
   const [autoPublishSiteId, setAutoPublishSiteId] = useState('');
   const [autoPublishLive, setAutoPublishLive] = useState(true);
+  // Drip = spread this batch's release_at timestamps over 30 days so
+  // the user can paste once and have articles publish over the month.
+  // Default OFF — keeps "Generate now" behavior identical to today.
+  // Only meaningful when the paste is 2+ keywords.
+  const [dripOverMonth, setDripOverMonth] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // ── data ──
@@ -76,7 +86,10 @@ export default function Dashboard() {
     ] = await Promise.all([
       supabase
         .from('jobs')
-        .select('id, keyword, status, error, created_at, completed_at, article_id')
+        .select(
+          'id, keyword, status, error, created_at, completed_at, article_id, ' +
+            'release_at, drip_batch_id, drip_position',
+        )
         .order('created_at', { ascending: false })
         .limit(40),
       supabase
@@ -224,11 +237,23 @@ export default function Dashboard() {
   }, [voices]);
   const voiceLabel = useMemo(() => formatVoiceLabel(voices, sites), [voices, sites]);
   const siteName = sites?.[0]?.name ?? null;
+  // "Next run" considers both immediate jobs and the next scheduled
+  // drip release. A running job → 0 (happening now). A queued job with
+  // no release_at → 0 (claimable now). A scheduled job → hours until
+  // release_at fires. Picks the earliest of those.
   const nextRunHours = useMemo(() => {
-    const queued = jobs.find((j) => j.status === 'queued' || j.status === 'running');
-    if (!queued) return null;
-    const ageMs = Date.now() - new Date(queued.created_at).getTime();
-    return Math.max(0, Math.round(24 - ageMs / (1000 * 60 * 60)));
+    const running = jobs.find((j) => j.status === 'running');
+    if (running) return 0;
+    const readyQueued = jobs.find(
+      (j) => j.status === 'queued' && (!j.release_at || new Date(j.release_at) <= new Date()),
+    );
+    if (readyQueued) return 0;
+    const scheduled = jobs
+      .filter((j) => j.status === 'queued' && j.release_at)
+      .map((j) => new Date(j.release_at).getTime())
+      .sort((a, b) => a - b)[0];
+    if (!scheduled) return null;
+    return Math.max(0, Math.round((scheduled - Date.now()) / (1000 * 60 * 60)));
   }, [jobs]);
   const jobsQueued = useMemo(
     () => jobs.filter((j) => j.status === 'queued' || j.status === 'running').length,
@@ -264,19 +289,32 @@ export default function Dashboard() {
     return out;
   }, [jobs, articles, articleById]);
 
-  // Submit handler — same DB write + toast logic as before, just
-  // invoked from the editorial KeywordForm.
+  // Submit handler — writes one job row per keyword. When the drip
+  // toggle is on and the batch has 2+ keywords, each row gets a
+  // future release_at timestamp so the worker only claims them as
+  // their slot comes due. The first row releases immediately so the
+  // user sees something start moving; the Nth row releases at +30
+  // days. Linear spacing between, computed as 30days/(N-1).
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitting(true);
 
-    const rows = parsedKeywords.map((kw) => ({
+    const shouldDrip = dripOverMonth && parsedKeywords.length >= 2;
+    const dripBatchId = shouldDrip ? crypto.randomUUID() : null;
+    const totalMs = DRIP_DAYS * 24 * 60 * 60 * 1000;
+    const intervalMs = shouldDrip ? totalMs / (parsedKeywords.length - 1) : 0;
+    const now = Date.now();
+
+    const rows = parsedKeywords.map((kw, i) => ({
       user_id: user.id,
       keyword: kw,
       voice_id: voiceId || null,
       auto_publish_site_id: autoPublishSiteId || null,
       auto_publish_live: autoPublishSiteId ? autoPublishLive : false,
+      release_at: shouldDrip ? new Date(now + i * intervalMs).toISOString() : null,
+      drip_batch_id: dripBatchId,
+      drip_position: shouldDrip ? i + 1 : null,
     }));
 
     const { data: inserted, error } = await supabase.from('jobs').insert(rows).select('id');
@@ -295,12 +333,23 @@ export default function Dashboard() {
     }
     const queuedCount = inserted?.length ?? rows.length;
     setKeyword('');
-    toast(
-      queuedCount === 1
-        ? 'Job queued. The worker will pick it up shortly.'
-        : `${queuedCount} jobs queued. They'll run one at a time.`,
-      { tone: 'success' },
-    );
+    if (shouldDrip) {
+      const lastReleaseDate = new Date(now + (queuedCount - 1) * intervalMs);
+      toast(
+        `${queuedCount} jobs scheduled — first publishes now, last on ${lastReleaseDate.toLocaleDateString(
+          'en-US',
+          { month: 'short', day: 'numeric' },
+        )}.`,
+        { tone: 'success' },
+      );
+    } else {
+      toast(
+        queuedCount === 1
+          ? 'Job queued. The worker will pick it up shortly.'
+          : `${queuedCount} jobs queued. They'll run one at a time.`,
+        { tone: 'success' },
+      );
+    }
     load();
   };
 
@@ -367,6 +416,9 @@ export default function Dashboard() {
             setAutoPublishSiteId={setAutoPublishSiteId}
             autoPublishLive={autoPublishLive}
             setAutoPublishLive={setAutoPublishLive}
+            dripOverMonth={dripOverMonth}
+            setDripOverMonth={setDripOverMonth}
+            dripDays={DRIP_DAYS}
             voices={voices}
             sites={sites}
             submitting={submitting}
