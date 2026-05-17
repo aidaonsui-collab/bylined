@@ -1058,6 +1058,16 @@ a { color: inherit; text-decoration: none; }
   animation: ed-pulse-dot 2.2s ease-in-out infinite;
 }
 
+/* Masthead responsive — burger hidden on desktop, avatar/sign-out
+   hidden on mobile (they move into the slide-down panel). The burger
+   button itself uses an inline display (set by JS-side style), so we
+   override here. */
+.editorial-shell .ed-masthead-burger { display: none; }
+@media (max-width: 960px) {
+  .editorial-shell .ed-masthead-burger { display: inline-flex !important; align-items: center; justify-content: center; }
+  .editorial-shell .ed-masthead-desktop { display: none !important; }
+}
+
 /* Editorial layout collapses to a single column on narrow screens.
    The 3-column telemetry block becomes stacked; the 1fr+260px chart
    row also drops to one column so the side panel sits below. */

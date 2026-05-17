@@ -155,6 +155,7 @@ export function Masthead({ activeSub, org }) {
           <Link
             to="/app/settings"
             title={user?.email}
+            className="ed-masthead-desktop"
             style={S.mast.avatar}
           >
             {initials}
@@ -162,6 +163,7 @@ export function Masthead({ activeSub, org }) {
           <button
             type="button"
             onClick={signOut}
+            className="ed-masthead-desktop"
             style={S.mast.signOutBtn}
             title="Sign out"
           >
@@ -171,10 +173,11 @@ export function Masthead({ activeSub, org }) {
             type="button"
             className="ed-masthead-burger"
             onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Open menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
             style={S.mast.burger}
           >
-            ☰
+            {menuOpen ? '✕' : '☰'}
           </button>
         </div>
       </div>
@@ -194,6 +197,31 @@ export function Masthead({ activeSub, org }) {
               {l.label}
             </Link>
           ))}
+          <Link
+            to="/app/settings"
+            onClick={() => setMenuOpen(false)}
+            style={{ ...S.mast.mobileLink, color: 'var(--paper-mute)' }}
+          >
+            Settings <span className="ed-mono" style={{ fontSize: 10, marginLeft: 8, color: 'var(--paper-faint)' }}>{user?.email}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              signOut();
+            }}
+            style={{
+              ...S.mast.mobileLink,
+              background: 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              color: 'var(--ed-warn)',
+              borderBottom: 'none',
+            }}
+          >
+            Sign out
+          </button>
         </div>
       )}
     </header>
@@ -1671,10 +1699,11 @@ const S = {
       textTransform: 'uppercase', borderRadius: 3, cursor: 'pointer',
     },
     burger: {
-      display: 'none',
+      // display toggled by CSS — hidden on desktop, shown <960px.
       background: 'var(--ink-2)', border: '1px solid var(--rule)',
-      color: 'var(--paper)', padding: '4px 10px',
+      color: 'var(--paper)', padding: '4px 12px',
       borderRadius: 4, cursor: 'pointer',
+      fontSize: 16, lineHeight: 1,
     },
     mobilePanel: {
       display: 'flex', flexDirection: 'column',

@@ -106,6 +106,9 @@ Write an SEO article. Body is plain prose with no [^N] markers — citations are
       { role: "system", content: systemContent },
       { role: "user", content: userPrompt },
     ],
-    { max_tokens: 6000, costType: "llm_generation" }
+    // 8000 = ~3000 tokens for reasoning + ~5000 for the JSON envelope
+    // (1200-word article + citations array). chatJSON grows this 1.5×
+    // per retry if MiniMax still truncates.
+    { max_tokens: 8000, costType: "llm_generation" }
   );
 }

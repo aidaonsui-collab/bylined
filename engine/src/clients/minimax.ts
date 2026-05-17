@@ -48,6 +48,17 @@ function getConfig() {
   return { apiKey, baseUrl, model };
 }
 
+// Errors thrown by chat() when MiniMax cuts the response off because
+// max_tokens was exhausted (vs an empty/unknown failure). chatJSON
+// catches this and retries with a bigger budget — a plain temperature
+// bump can't recover from a truncated response.
+export class MinimaxTruncatedError extends Error {
+  constructor(public attempt: number) {
+    super(`Minimax truncated response (finish_reason=length, attempt=${attempt})`);
+    this.name = "MinimaxTruncatedError";
+  }
+}
+
 export async function chat(messages: Message[], opts: ChatOptions = {}): Promise<string> {
   const { apiKey, baseUrl, model: defaultModel } = getConfig();
   const model = opts.model ?? defaultModel;
@@ -56,6 +67,9 @@ export async function chat(messages: Message[], opts: ChatOptions = {}): Promise
 
   // Up to 2 attempts: empty responses can occur transiently. Slightly raise
   // temperature on retry so the model doesn't reproduce the exact empty path.
+  // NOTE: a finish_reason="length" truncation is NOT retried here — temp
+  // doesn't help when the model needed more budget. We throw
+  // MinimaxTruncatedError so chatJSON can retry with a larger max_tokens.
   let lastDetail = "";
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(`${baseUrl}/text/chatcompletion_v2`, {
@@ -85,6 +99,14 @@ export async function chat(messages: Message[], opts: ChatOptions = {}): Promise
 
     const choice = data.choices?.[0];
     const content = choice?.message?.content;
+    const finishReason = choice?.finish_reason ?? "unknown";
+
+    // Truncation = bad JSON. Surface it as a typed error so chatJSON can
+    // grow the budget on retry instead of just bumping temperature.
+    if (finishReason === "length") {
+      throw new MinimaxTruncatedError(attempt);
+    }
+
     if (content) {
       logCost({
         event_type: opts.costType ?? "llm_other",
@@ -98,7 +120,7 @@ export async function chat(messages: Message[], opts: ChatOptions = {}): Promise
       return content;
     }
 
-    lastDetail = `finish_reason=${choice?.finish_reason ?? "unknown"}`;
+    lastDetail = `finish_reason=${finishReason}`;
     if (attempt === 0) {
       console.warn(`[minimax] empty response (${lastDetail}), retrying with higher temp...`);
     }
@@ -108,7 +130,13 @@ export async function chat(messages: Message[], opts: ChatOptions = {}): Promise
 }
 
 // Same as chat() but instructs the model to return JSON, strips code fences,
-// and retries once on parse failure.
+// and retries on parse failure or truncation. Each retry grows max_tokens
+// 1.5× because the most common cause of malformed JSON in our pipeline is
+// MiniMax cutting off mid-string when the reasoning budget eats into the
+// response budget (M2.7 is a reasoning model — hidden CoT tokens count).
+const MIN_JSON_BUDGET = 4000;
+const MAX_JSON_BUDGET = 24000;
+
 export async function chatJSON<T>(
   messages: Message[],
   opts: ChatOptions = {}
@@ -121,25 +149,47 @@ export async function chatJSON<T>(
       role: lastMsg.role,
       content:
         lastMsg.content +
-        "\n\nRespond with valid JSON only. No prose, no markdown, no code fences.",
+        "\n\nRespond with valid JSON only. No prose, no markdown, no code fences. " +
+        "Keep the response concise enough to fit inside max_tokens — if you sense " +
+        "you're running out of room, finish the current field and close the JSON.",
     },
   ];
 
+  let budget = Math.max(opts.max_tokens ?? MIN_JSON_BUDGET, MIN_JSON_BUDGET);
   let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const raw = await chat(augmented, opts);
-    const cleaned = raw
-      .trim()
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "");
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return JSON.parse(cleaned) as T;
+      const raw = await chat(augmented, { ...opts, max_tokens: budget });
+      const cleaned = raw
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/, "");
+      try {
+        return JSON.parse(cleaned) as T;
+      } catch (e) {
+        lastError = e;
+        // Likely a truncation that finish_reason didn't catch (some
+        // model versions return content + finish_reason="stop" even
+        // when the response is incomplete). Grow the budget anyway.
+        budget = Math.min(Math.ceil(budget * 1.5), MAX_JSON_BUDGET);
+        console.warn(
+          `[minimax] JSON parse failed (attempt ${attempt}), growing budget to ${budget} and retrying...`
+        );
+      }
     } catch (e) {
-      lastError = e;
+      if (e instanceof MinimaxTruncatedError) {
+        lastError = e;
+        budget = Math.min(Math.ceil(budget * 1.5), MAX_JSON_BUDGET);
+        console.warn(
+          `[minimax] response truncated (attempt ${attempt}), growing budget to ${budget} and retrying...`
+        );
+        continue;
+      }
+      throw e;
     }
   }
   throw new Error(
-    `Minimax did not return valid JSON after 2 attempts: ${
+    `Minimax did not return valid JSON after 3 attempts (final budget ${budget}): ${
       lastError instanceof Error ? lastError.message : String(lastError)
     }`
   );
