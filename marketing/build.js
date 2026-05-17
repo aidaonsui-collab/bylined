@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Marketing-site build step.
+// Marketing-site build step. (Touched 2026-05-17 to rebuild after a
+// bulk publish of 18 backfilled articles direct to blog_posts.)
 //
 // Runs at Vercel build time. Fetches published rows from public.blog_posts
 // (anon-readable per RLS policy in 20260515000002_bylined_hosted_blog.sql),
