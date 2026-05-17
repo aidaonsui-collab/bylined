@@ -90,8 +90,22 @@ export function Masthead({ activeSub, org }) {
           <span style={S.mast.metaTxt}>{dateLine}</span>
         </div>
         <div style={S.mast.metaRight}>
-          <span className="ed-live-dot" />
-          <span style={S.mast.metaTxt}>PRESSROOM LIVE</span>
+          <span className="ed-masthead-desktop" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span className="ed-live-dot" />
+            <span style={S.mast.metaTxt}>PRESSROOM LIVE</span>
+          </span>
+          {/* Mobile-only burger lives here in the top row so it sits at the
+              very top-right of the header instead of below the nameplate. */}
+          <button
+            type="button"
+            className="ed-masthead-burger"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            style={S.mast.burger}
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
         </div>
       </div>
 
@@ -168,16 +182,6 @@ export function Masthead({ activeSub, org }) {
             title="Sign out"
           >
             Sign out
-          </button>
-          <button
-            type="button"
-            className="ed-masthead-burger"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={menuOpen}
-            style={S.mast.burger}
-          >
-            {menuOpen ? '✕' : '☰'}
           </button>
         </div>
       </div>

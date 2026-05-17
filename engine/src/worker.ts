@@ -544,10 +544,46 @@ async function runDemoArticle(demo: DemoRequest): Promise<void> {
   }
 }
 
+// On startup, mark any jobs left in 'running' as failed. This catches
+// rows that were orphaned by the previous worker crashing or being
+// restarted mid-job (Railway redeploy, OOM, segfault, etc). Without
+// this they sit in 'running' forever and block the user — there is
+// no other process that ever moves them off that state.
+//
+// 10 minutes is well above the longest legitimate per-job runtime
+// (typical: 30-120s; pathological: ~5 min). Any 'running' row older
+// than that is definitely orphaned, not in-progress.
+async function reapStaleRunning(): Promise<void> {
+  const cutoffMs = Date.now() - 10 * 60 * 1000;
+  const { data, error } = await admin
+    .from("jobs")
+    .update({
+      status: "failed",
+      error:
+        "Worker process crashed or was restarted while this job was running. Retry to re-queue (no quota charge).",
+      completed_at: new Date().toISOString(),
+    })
+    .eq("status", "running")
+    .lt("created_at", new Date(cutoffMs).toISOString())
+    .select("id, keyword");
+  if (error) {
+    console.error("[worker] reapStaleRunning error:", error.message);
+    return;
+  }
+  if (data && data.length > 0) {
+    console.log(
+      `[worker] reaped ${data.length} stale running job(s): ${data
+        .map((r) => `"${r.keyword}"`)
+        .join(", ")}`
+    );
+  }
+}
+
 async function loop(): Promise<void> {
   console.log(
     `[worker] up — polling ${SUPABASE_URL} every ${POLL_MS}ms (Ctrl-C to stop)`
   );
+  await reapStaleRunning();
   while (!stopping) {
     // Paying jobs always take priority over anonymous demo runs.
     const job = await claimNextJob();
