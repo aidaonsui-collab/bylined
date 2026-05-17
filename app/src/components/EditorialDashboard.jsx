@@ -33,6 +33,7 @@ import { useAuth } from '../store.jsx';
 import { mockVisibilityHistory, VISIBILITY_MAX_PER_WEEK } from '../lib/mockVisibility.js';
 import { renderArticle } from '../lib/renderArticle.js';
 import { cancelScheduledJob, regenerateArticle, retryJob } from '../lib/jobs.js';
+import { fetchKeywordSuggestions } from '../lib/suggestKeywords.js';
 import PublishControls from './PublishControls.jsx';
 
 const ACCENT = {
@@ -1005,6 +1006,47 @@ export function KeywordForm({
     ? new Date(Date.now() + (count - 1) * dripIntervalDays * 24 * 60 * 60 * 1000)
     : null;
 
+  // ── Brand-voice keyword suggestions ─────────────────────────────
+  // Calls the suggest-keywords edge function. Lives in form-local
+  // state because nobody outside the form cares about the panel's
+  // open/closed status. `addedSet` tracks which chips have been
+  // clicked this session so we can grey them out instead of letting
+  // the user double-add the same suggestion.
+  const [suggestions, setSuggestions] = useState(null);
+  const [suggestionsError, setSuggestionsError] = useState(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [addedSet, setAddedSet] = useState(new Set());
+  const hasVoice = voices && voices.length > 0;
+
+  const loadSuggestions = async () => {
+    setLoadingSuggestions(true);
+    setSuggestionsError(null);
+    // Pass through the currently-selected voice if any, so suggestions
+    // match whichever brand voice the user has dialed in for this batch.
+    const result = await fetchKeywordSuggestions({
+      voiceId: voiceId || undefined,
+      count: 15,
+    });
+    setLoadingSuggestions(false);
+    if (!result.ok) {
+      setSuggestionsError(result.error || 'Failed to fetch suggestions.');
+      return;
+    }
+    setSuggestions(result.suggestions || []);
+    setAddedSet(new Set()); // reset added-tracking when a fresh batch comes back
+  };
+
+  const addSuggestion = (kw) => {
+    if (addedSet.has(kw)) return;
+    // Append to textarea. Preserve trailing newline if user is in the
+    // middle of typing; otherwise prepend one so chips stack on their
+    // own lines instead of jamming into whatever text is there.
+    const current = keyword.replace(/\s+$/, '');
+    const nextKeyword = current ? `${current}\n${kw}` : kw;
+    setKeyword(nextKeyword);
+    setAddedSet((prev) => new Set([...prev, kw]));
+  };
+
   return (
     <section style={S.kw.wrap}>
       <div style={S.kw.header}>
@@ -1014,8 +1056,77 @@ export function KeywordForm({
             Hand the writers their assignments.
           </h2>
         </div>
-        <span style={S.kw.tag}>BATCH</span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={loadSuggestions}
+            disabled={loadingSuggestions || !hasVoice || submitting}
+            title={hasVoice ? 'Brainstorm keywords from your brand voice' : 'Extract a brand voice first at /app/voice'}
+            style={{
+              ...S.kw.suggestBtn,
+              opacity: hasVoice ? 1 : 0.5,
+              cursor: hasVoice ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {loadingSuggestions
+              ? 'Brainstorming…'
+              : suggestions
+              ? 'Refresh ideas ↻'
+              : 'Suggest keywords ✦'}
+          </button>
+          <span style={S.kw.tag}>BATCH</span>
+        </div>
       </div>
+
+      {suggestionsError && (
+        <div style={S.kw.suggestError}>{suggestionsError}</div>
+      )}
+
+      {suggestions && suggestions.length > 0 && (
+        <div style={S.kw.suggestPanel}>
+          <div style={S.kw.suggestHeader}>
+            <span className="ed-eyebrow">Suggested · grounded in your voice</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSuggestions(null);
+                setAddedSet(new Set());
+              }}
+              style={S.kw.suggestClose}
+              title="Hide suggestions"
+            >
+              dismiss
+            </button>
+          </div>
+          <div style={S.kw.suggestChips}>
+            {suggestions.map((s, i) => {
+              const added = addedSet.has(s.keyword);
+              return (
+                <button
+                  key={`${s.keyword}-${i}`}
+                  type="button"
+                  onClick={() => addSuggestion(s.keyword)}
+                  disabled={added || submitting}
+                  title={s.why || ''}
+                  style={{
+                    ...S.kw.suggestChip,
+                    ...(added ? S.kw.suggestChipAdded : null),
+                  }}
+                >
+                  <span>{s.keyword}</span>
+                  <span style={S.kw.suggestPlus}>{added ? '✓' : '+'}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {suggestions && suggestions.length === 0 && (
+        <div style={S.kw.suggestError}>
+          No fresh ideas this round — your recent articles may already cover the natural sibling topics. Try again later or pick a different brand voice.
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="ed-kw-body" style={S.kw.body}>
         <div style={S.kw.editorWrap}>
@@ -2121,6 +2232,85 @@ const S = {
       fontFamily: 'var(--ed-mono)', fontSize: 11,
       letterSpacing: '0.12em', textTransform: 'uppercase',
       borderRadius: 3, fontWeight: 600,
+    },
+    // ── Brand-voice suggestion panel ───────────────────────────────
+    suggestBtn: {
+      background: 'transparent',
+      border: '1px solid var(--rule-strong)',
+      color: 'var(--paper)',
+      padding: '7px 12px',
+      fontFamily: 'var(--ed-mono)',
+      fontSize: 11,
+      letterSpacing: '0.1em',
+      textTransform: 'uppercase',
+      borderRadius: 3,
+      cursor: 'pointer',
+      transition: 'background 120ms, border-color 120ms',
+    },
+    suggestPanel: {
+      marginBottom: 18,
+      padding: '16px 18px',
+      background: 'var(--ink-1)',
+      border: '1px solid var(--rule)',
+      borderLeft: '2px solid oklch(83% 0.21 130)',
+    },
+    suggestHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    suggestClose: {
+      background: 'transparent',
+      border: 'none',
+      color: 'var(--paper-faint)',
+      fontFamily: 'var(--ed-mono)',
+      fontSize: 10,
+      letterSpacing: '0.12em',
+      textTransform: 'uppercase',
+      cursor: 'pointer',
+      padding: 0,
+    },
+    suggestChips: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    suggestChip: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '7px 11px',
+      background: 'var(--ink-2)',
+      border: '1px solid var(--rule-strong)',
+      color: 'var(--paper)',
+      fontFamily: 'var(--ed-sans)',
+      fontSize: 12.5,
+      lineHeight: 1.2,
+      borderRadius: 3,
+      cursor: 'pointer',
+      transition: 'background 120ms, border-color 120ms, opacity 120ms',
+    },
+    suggestChipAdded: {
+      background: 'transparent',
+      border: '1px dashed var(--rule-strong)',
+      color: 'var(--paper-mute)',
+      cursor: 'default',
+    },
+    suggestPlus: {
+      fontFamily: 'var(--ed-mono)',
+      fontSize: 11,
+      color: 'var(--paper-faint)',
+    },
+    suggestError: {
+      marginBottom: 18,
+      padding: '12px 14px',
+      background: 'var(--ink-1)',
+      border: '1px solid var(--ed-warn)',
+      borderLeft: '2px solid var(--ed-warn)',
+      color: 'var(--paper-dim)',
+      fontSize: 13,
+      lineHeight: 1.5,
     },
   },
 
