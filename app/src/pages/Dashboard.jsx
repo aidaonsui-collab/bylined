@@ -191,10 +191,11 @@ export default function Dashboard() {
         articles: recentMetrics,
         jobs,
         sites,
+        voices,
         quotaUsed: activeSub?.articles_used_this_period ?? 0,
         quotaTotal: activeSub?.articles_quota ?? 0,
       }),
-    [recentMetrics, jobs, sites, activeSub],
+    [recentMetrics, jobs, sites, voices, activeSub],
   );
 
   const healthBreakdown = useMemo(() => {
@@ -356,6 +357,7 @@ export default function Dashboard() {
         />
 
         {activeSub ? (
+          <div id="keyword-form" style={{ scrollMarginTop: 80 }}>
           <KeywordForm
             keyword={keyword}
             setKeyword={setKeyword}
@@ -376,6 +378,7 @@ export default function Dashboard() {
             maxBulk={MAX_BULK}
             onSubmit={handleSubmit}
           />
+          </div>
         ) : (
           <NoPlanBanner />
         )}

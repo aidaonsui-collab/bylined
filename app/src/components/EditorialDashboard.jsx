@@ -1590,7 +1590,7 @@ export function computePillars({ recent, prior, quotaUsed, quotaTotal }) {
 
 // Builds the canonical "tasks" list for the right rail. Mirrors the
 // rules from the prior DashboardOverview so behavior is unchanged.
-export function computeTasks({ articles, jobs, sites, quotaUsed, quotaTotal }) {
+export function computeTasks({ articles, jobs, sites, voices, quotaUsed, quotaTotal }) {
   const draftCount = (articles ?? []).filter((a) => a.status === 'draft').length;
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const failedJobs = (jobs ?? []).filter(
@@ -1605,9 +1605,20 @@ export function computeTasks({ articles, jobs, sites, quotaUsed, quotaTotal }) {
   const quotaPct = quotaTotal > 0 ? quotaUsed / quotaTotal : 0;
   const quotaWarn = quotaPct >= 0.9 && quotaPct < 1 ? 1 : 0;
 
+  // Voice configured but ignored: count articles in the window with no
+  // voice_match_score (the scorer writes null only when no voice was
+  // attached to the producing job). Only surfaces when the customer
+  // has at least one voice — otherwise the absence is expected, not a
+  // miss.
+  const hasVoice = (voices?.length ?? 0) > 0;
+  const voiceUnusedCount = hasVoice
+    ? (articles ?? []).filter((a) => a.voice_match_score == null).length
+    : 0;
+
   return [
     { id: 'drafts', label: 'Drafts awaiting publish', count: draftCount, kind: 'warn', href: '#recent' },
     { id: 'voice', label: 'Sites missing voice fingerprint', count: sitesNoVoice, kind: 'warn', href: '/app/sites' },
+    { id: 'voice-unused', label: 'Recent articles ignored your voice', count: voiceUnusedCount, kind: 'warn', href: '#keyword-form' },
     { id: 'below', label: 'Articles below 95% receipts', count: lowReceipts, kind: 'warn', href: '#recent' },
     { id: 'failed', label: 'Failed jobs (last 7d)', count: failedJobs, kind: 'warn', href: '#recent' },
     { id: 'quota', label: 'Quota nearing limit', count: quotaWarn, kind: 'warn', href: '/app/billing' },
