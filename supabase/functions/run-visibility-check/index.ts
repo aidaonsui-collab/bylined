@@ -17,8 +17,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY") ?? "";
 const PERPLEXITY_MODEL = Deno.env.get("PERPLEXITY_MODEL") ?? "sonar";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
+// Mini variant: same web_search capability, ~17× cheaper tokens.
+// Web-search activation cost ($25/1000) dominates either way, but
+// token cost goes from ~$0.006/query → ~$0.0004/query. Override
+// via env if a higher-quality model is needed for a specific user.
 const OPENAI_SEARCH_MODEL =
-  Deno.env.get("OPENAI_SEARCH_MODEL") ?? "gpt-4o-search-preview";
+  Deno.env.get("OPENAI_SEARCH_MODEL") ?? "gpt-4o-mini-search-preview";
 // Where bylined_hosted blogs actually publish. Articles live at
 // {base}/blog/{slug}, so this is the domain to search for citations
 // of. Defaults match publish-article's default.
