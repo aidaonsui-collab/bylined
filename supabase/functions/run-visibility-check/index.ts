@@ -23,16 +23,20 @@ const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 // via env if a higher-quality model is needed for a specific user.
 const OPENAI_SEARCH_MODEL =
   Deno.env.get("OPENAI_SEARCH_MODEL") ?? "gpt-4o-mini-search-preview";
-// SerpAPI key for Google AI Overviews lookup. No native API exists for
-// AIO; SerpAPI scrapes Google SERPs and returns the ai_overview block
-// in the same response. Free tier = 100 searches/month — enough for
-// 5-10 weekly checks per single user. Paid plans start at $50/mo for
-// 5,000 searches when more customers come online.
-const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY") ?? "";
-// gl=us / hl=en defaults match what most B2B SaaS buyer queries default
-// to. Override later if we add regional tracking.
-const SERPAPI_GL = Deno.env.get("SERPAPI_GL") ?? "us";
-const SERPAPI_HL = Deno.env.get("SERPAPI_HL") ?? "en";
+// DataForSEO HTTP Basic credentials for Google AI Overviews lookup.
+// No native API exists for AIO; SerpAPI/DataForSEO/etc. scrape SERPs.
+// We tested SerpAPI's free tier and its 2-call AIO follow-up was
+// unreliable (page_tokens often returned "no results"). DataForSEO
+// returns AIO references in a single call; cheaper per query but
+// has a $50 minimum prepaid deposit. Set credentials when funded.
+const DATAFORSEO_LOGIN = Deno.env.get("DATAFORSEO_LOGIN") ?? "";
+const DATAFORSEO_PASSWORD = Deno.env.get("DATAFORSEO_PASSWORD") ?? "";
+const DATAFORSEO_LOCATION_CODE = parseInt(
+  Deno.env.get("DATAFORSEO_LOCATION_CODE") ?? "2840",
+  10,
+);
+const DATAFORSEO_LANGUAGE_CODE =
+  Deno.env.get("DATAFORSEO_LANGUAGE_CODE") ?? "en";
 // Where bylined_hosted blogs actually publish. Articles live at
 // {base}/blog/{slug}, so this is the domain to search for citations
 // of. Defaults match publish-article's default.
@@ -239,7 +243,8 @@ Deno.serve(async (req) => {
     notes: [
       !PERPLEXITY_API_KEY && "PERPLEXITY_API_KEY not set",
       !OPENAI_API_KEY && "OPENAI_API_KEY not set",
-      !SERPAPI_KEY && "SERPAPI_KEY not set",
+      (!DATAFORSEO_LOGIN || !DATAFORSEO_PASSWORD) &&
+        "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD not set",
     ].filter(Boolean),
   });
 });
@@ -380,70 +385,88 @@ async function askChatGPT(
 // record cited=false with a note so we don't burn a 2nd billable
 // call. Customers on paid plans can swap the function to chain that
 // second call if they want fuller coverage.
+// Google AI Overviews via DataForSEO. There's no native API for AIO;
+// DataForSEO scrapes Google SERPs and returns the AIO block in its
+// items[] array when one is shown. AI Overviews don't appear on
+// every query — when there's no AIO block we return cited=false
+// with no error (Google just didn't surface one for this query).
+//
+// We previously tried SerpAPI here (free tier, no deposit) but their
+// two-call AIO follow-up flow returned "no results" on free tier
+// page_tokens too often to be useful. DataForSEO returns AIO
+// references in one call — cleaner but needs a $50 prepaid deposit
+// to activate. Will populate google_citations the moment
+// DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD are set on the function.
 async function askGoogleAIO(
   question: string,
   userDomain: string,
 ): Promise<EngineResult> {
-  if (!SERPAPI_KEY) {
+  if (!DATAFORSEO_LOGIN || !DATAFORSEO_PASSWORD) {
     return {
       cited: false,
       citations: [],
-      error: "SERPAPI_KEY not set on this function",
+      error: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD not set on this function",
     };
   }
   try {
-    const url = new URL("https://serpapi.com/search.json");
-    url.searchParams.set("engine", "google");
-    url.searchParams.set("q", question);
-    url.searchParams.set("gl", SERPAPI_GL);
-    url.searchParams.set("hl", SERPAPI_HL);
-    url.searchParams.set("num", "10");
-    url.searchParams.set("api_key", SERPAPI_KEY);
-
-    const res = await fetch(url, {
-      method: "GET",
-      signal: AbortSignal.timeout(45_000),
-    });
+    const auth = btoa(`${DATAFORSEO_LOGIN}:${DATAFORSEO_PASSWORD}`);
+    const res = await fetch(
+      "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify([
+          {
+            keyword: question,
+            language_code: DATAFORSEO_LANGUAGE_CODE,
+            location_code: DATAFORSEO_LOCATION_CODE,
+            device: "desktop",
+            depth: 10,
+          },
+        ]),
+        signal: AbortSignal.timeout(45_000),
+      },
+    );
     if (!res.ok) {
       return {
         cited: false,
         citations: [],
-        error: `SerpAPI ${res.status}: ${(await res.text()).slice(0, 200)}`,
+        error: `DataForSEO ${res.status}: ${(await res.text()).slice(0, 200)}`,
       };
     }
     const data = await res.json() as {
-      ai_overview?: {
-        text_blocks?: Array<unknown>;
-        references?: Array<{ link?: string; source?: string; title?: string }>;
-        page_token?: string;
-      };
-      error?: string;
+      status_code?: number;
+      status_message?: string;
+      tasks?: Array<{
+        status_code?: number;
+        status_message?: string;
+        result?: Array<{
+          items?: Array<{
+            type?: string;
+            references?: Array<{ source?: string; url?: string }>;
+            items?: Array<{ source?: string; url?: string; type?: string }>;
+          }>;
+        }>;
+      }>;
     };
-    if (data.error) {
+    if ((data.status_code ?? 0) >= 40000) {
       return {
         cited: false,
         citations: [],
-        error: `SerpAPI: ${data.error}`,
+        error: `DataForSEO API ${data.status_code}: ${data.status_message ?? "unknown"}`,
       };
     }
-    const aio = data.ai_overview;
+    const items = data.tasks?.[0]?.result?.[0]?.items ?? [];
+    const aio = items.find((i) => i?.type === "ai_overview");
     if (!aio) {
-      // No AI Overview shown for this query — not a failure, just a
-      // signal that Google didn't surface one. Record honestly.
       return { cited: false, citations: [] };
     }
-    const refs = aio.references ?? [];
-    if (refs.length === 0 && aio.page_token) {
-      // SerpAPI returned a stub — full AIO content would need a
-      // second billable fetch. Skip to preserve free-tier quota.
-      return {
-        cited: false,
-        citations: [],
-        error: "SerpAPI returned ai_overview stub (page_token only). Upgrade plan to follow.",
-      };
-    }
+    const refs = [...(aio.references ?? []), ...(aio.items ?? [])];
     const citations = refs
-      .map((r) => r?.link)
+      .map((r) => r?.url ?? r?.source)
       .filter((u): u is string => typeof u === "string" && u.length > 0);
     const target = userDomain.toLowerCase();
     const cited = citations.some((u) => extractDomain(u)?.includes(target));
