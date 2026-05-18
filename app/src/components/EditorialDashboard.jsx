@@ -708,7 +708,12 @@ export function VisibilityChartEditorial({ userId, signupDate, voiceHost, snapsh
           perplexity: s.perplexity_citations ?? 0,
           chatgpt: s.chatgpt_citations ?? 0,
           claude: s.claude_citations ?? 0,
-          total: (s.perplexity_citations ?? 0) + (s.chatgpt_citations ?? 0) + (s.claude_citations ?? 0),
+          google: s.google_citations ?? 0,
+          total:
+            (s.perplexity_citations ?? 0) +
+            (s.chatgpt_citations ?? 0) +
+            (s.claude_citations ?? 0) +
+            (s.google_citations ?? 0),
           questions: s.questions_asked ?? 5,
         }));
     }
@@ -769,12 +774,12 @@ export function VisibilityChartEditorial({ userId, signupDate, voiceHost, snapsh
             maxWidth: 620,
           }}
         >
-          How often Perplexity, ChatGPT and Claude cite{' '}
+          How often Perplexity, ChatGPT, Google AI Overviews and Claude cite{' '}
           <span style={{ color: ACCENT.sig }}>{hostDisplay}</span> when asked your buyers' questions.
         </div>
         <div className="ed-mono" style={{ fontSize: 11, color: 'var(--paper-faint)', marginTop: 8 }}>
           {hasReal
-            ? 'Live data — cron runs daily, picks each user once per ~week. Perplexity wired; ChatGPT + Claude land later.'
+            ? 'Live data — cron runs daily, picks each user once per ~week. Perplexity + ChatGPT + Google AIO wired; Claude lands later.'
             : 'Mock data — set PERPLEXITY_API_KEY on the run-visibility-check function to start collecting real numbers.'}
         </div>
       </div>
@@ -877,9 +882,10 @@ export function VisibilityChartEditorial({ userId, signupDate, voiceHost, snapsh
           <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--rule)' }}>
             <div className="ed-eyebrow" style={{ marginBottom: 10 }}>Engines</div>
             {[
-              { name: 'Perplexity', val: current.perplexity, of: 5 },
-              { name: 'ChatGPT', val: current.chatgpt, of: 5 },
-              { name: 'Claude', val: current.claude, of: 5 },
+              { name: 'Perplexity', val: current.perplexity ?? 0, of: 5 },
+              { name: 'ChatGPT', val: current.chatgpt ?? 0, of: 5 },
+              { name: 'Google AIO', val: current.google ?? 0, of: 5 },
+              { name: 'Claude', val: current.claude ?? 0, of: 5 },
             ].map((e) => (
               <div key={e.name} style={S.vis.engineRow}>
                 <span style={{ fontSize: 13, color: 'var(--paper)' }}>{e.name}</span>

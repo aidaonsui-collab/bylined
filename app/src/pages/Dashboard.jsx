@@ -164,7 +164,7 @@ export default function Dashboard() {
     const { data: snapshotRows } = await supabase
       .from('visibility_snapshots')
       .select(
-        'week_number, snapshot_date, perplexity_citations, chatgpt_citations, claude_citations, questions_asked',
+        'week_number, snapshot_date, perplexity_citations, chatgpt_citations, claude_citations, google_citations, questions_asked',
       )
       .order('week_number', { ascending: true })
       .limit(26);

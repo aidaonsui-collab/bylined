@@ -85,7 +85,9 @@ export function mockVisibilityHistory(userId, signupDateIso) {
   return history;
 }
 
-export const VISIBILITY_MAX_PER_WEEK = QUESTIONS_PER_ENGINE * 3;
+// 5 questions × 4 engines (Perplexity, ChatGPT, Google AIO, Claude).
+// Bumped from ×3 when Google AIO was added to the live pipeline.
+export const VISIBILITY_MAX_PER_WEEK = QUESTIONS_PER_ENGINE * 4;
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));

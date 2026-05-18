@@ -23,6 +23,20 @@ const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 // via env if a higher-quality model is needed for a specific user.
 const OPENAI_SEARCH_MODEL =
   Deno.env.get("OPENAI_SEARCH_MODEL") ?? "gpt-4o-mini-search-preview";
+// DataForSEO HTTP Basic credentials for Google AI Overviews lookup.
+// No native API exists for AIO; SerpAPI/DataForSEO/etc. scrape SERPs.
+// DataForSEO is ~$0.002/query, cheapest live-tier provider.
+const DATAFORSEO_LOGIN = Deno.env.get("DATAFORSEO_LOGIN") ?? "";
+const DATAFORSEO_PASSWORD = Deno.env.get("DATAFORSEO_PASSWORD") ?? "";
+// 2840 = United States, 'en' = English. Matches what most B2B SaaS
+// buyer queries default to in Google. Override per user later if
+// we add regional tracking.
+const DATAFORSEO_LOCATION_CODE = parseInt(
+  Deno.env.get("DATAFORSEO_LOCATION_CODE") ?? "2840",
+  10,
+);
+const DATAFORSEO_LANGUAGE_CODE =
+  Deno.env.get("DATAFORSEO_LANGUAGE_CODE") ?? "en";
 // Where bylined_hosted blogs actually publish. Articles live at
 // {base}/blog/{slug}, so this is the domain to search for citations
 // of. Defaults match publish-article's default.
@@ -52,6 +66,7 @@ interface QuestionResult {
   question: string;
   perplexity: EngineResult;
   chatgpt: EngineResult;
+  google: EngineResult;
 }
 
 Deno.serve(async (req) => {
@@ -176,18 +191,22 @@ Deno.serve(async (req) => {
   }
 
   // Parallel-per-question, sequential across questions (rate-limit
-  // friendly). 5 questions × ~5s each = ~25s total.
+  // friendly). 5 questions × ~6s each = ~30s total (DataForSEO is
+  // the slowest engine, ~5s per SERP scrape).
   const results: QuestionResult[] = [];
   let perplexityCitations = 0;
   let chatgptCitations = 0;
+  let googleCitations = 0;
   for (const q of questions) {
-    const [pplx, cgpt] = await Promise.all([
+    const [pplx, cgpt, ggl] = await Promise.all([
       askPerplexity(q, userDomain),
       askChatGPT(q, userDomain),
+      askGoogleAIO(q, userDomain),
     ]);
-    results.push({ question: q, perplexity: pplx, chatgpt: cgpt });
+    results.push({ question: q, perplexity: pplx, chatgpt: cgpt, google: ggl });
     if (pplx.cited) perplexityCitations += 1;
     if (cgpt.cited) chatgptCitations += 1;
+    if (ggl.cited) googleCitations += 1;
   }
 
   if (weekNumber == null) {
@@ -206,6 +225,7 @@ Deno.serve(async (req) => {
     perplexity_citations: perplexityCitations,
     chatgpt_citations: chatgptCitations,
     claude_citations: 0,
+    google_citations: googleCitations,
     questions_asked: questions.length,
     results: { domain: userDomain, items: results },
   });
@@ -218,10 +238,13 @@ Deno.serve(async (req) => {
     domain: userDomain,
     perplexity_citations: perplexityCitations,
     chatgpt_citations: chatgptCitations,
+    google_citations: googleCitations,
     questions_asked: questions.length,
     notes: [
       !PERPLEXITY_API_KEY && "PERPLEXITY_API_KEY not set",
       !OPENAI_API_KEY && "OPENAI_API_KEY not set",
+      (!DATAFORSEO_LOGIN || !DATAFORSEO_PASSWORD) &&
+        "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD not set",
     ].filter(Boolean),
   });
 });
@@ -341,6 +364,99 @@ async function askChatGPT(
     const cited =
       citations.some((url) => extractDomain(url)?.includes(target)) ||
       (msg?.content ?? "").toLowerCase().includes(target);
+    return { cited, citations };
+  } catch (e) {
+    return {
+      cited: false,
+      citations: [],
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+// Google AI Overviews via DataForSEO. There's no native API for AIO;
+// DataForSEO scrapes Google SERPs and returns the AI Overview block
+// in its items[] array when one is shown. AI Overviews don't appear
+// on every query — when there's no AIO block we return cited=false
+// with no error (that's just Google not showing one for this query).
+async function askGoogleAIO(
+  question: string,
+  userDomain: string,
+): Promise<EngineResult> {
+  if (!DATAFORSEO_LOGIN || !DATAFORSEO_PASSWORD) {
+    return {
+      cited: false,
+      citations: [],
+      error: "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD not set on this function",
+    };
+  }
+  try {
+    const auth = btoa(`${DATAFORSEO_LOGIN}:${DATAFORSEO_PASSWORD}`);
+    const res = await fetch(
+      "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify([
+          {
+            keyword: question,
+            language_code: DATAFORSEO_LANGUAGE_CODE,
+            location_code: DATAFORSEO_LOCATION_CODE,
+            device: "desktop",
+            depth: 10,
+          },
+        ]),
+        signal: AbortSignal.timeout(45_000),
+      },
+    );
+    if (!res.ok) {
+      return {
+        cited: false,
+        citations: [],
+        error: `DataForSEO ${res.status}: ${(await res.text()).slice(0, 200)}`,
+      };
+    }
+    const data = await res.json() as {
+      status_code?: number;
+      status_message?: string;
+      tasks?: Array<{
+        status_code?: number;
+        status_message?: string;
+        result?: Array<{
+          items?: Array<{
+            type?: string;
+            references?: Array<{ source?: string; url?: string }>;
+            items?: Array<{ source?: string; url?: string; type?: string }>;
+          }>;
+        }>;
+      }>;
+    };
+    if ((data.status_code ?? 0) >= 40000) {
+      return {
+        cited: false,
+        citations: [],
+        error: `DataForSEO API ${data.status_code}: ${data.status_message ?? "unknown"}`,
+      };
+    }
+    const items = data.tasks?.[0]?.result?.[0]?.items ?? [];
+    const aio = items.find((i) => i?.type === "ai_overview");
+    if (!aio) {
+      // No AI Overview shown for this query — not a failure, just a
+      // signal that Google didn't surface one. Return citations=[] so
+      // the snapshot row records "0 cited" honestly.
+      return { cited: false, citations: [] };
+    }
+    // AIO references can appear in either `references[]` (top-level)
+    // or `items[]` (nested), depending on the API response variant.
+    const refs = [...(aio.references ?? []), ...(aio.items ?? [])];
+    const citations = refs
+      .map((r) => r?.url ?? r?.source)
+      .filter((u): u is string => typeof u === "string" && u.length > 0);
+    const target = userDomain.toLowerCase();
+    const cited = citations.some((u) => extractDomain(u)?.includes(target));
     return { cited, citations };
   } catch (e) {
     return {
