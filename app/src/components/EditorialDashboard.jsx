@@ -686,14 +686,34 @@ function TaskRow({ t, idx, done }) {
 // ─── Visibility chart ────────────────────────────────────────────
 // Area + line over a paper-grid background, with a PROJECTED·MOCK
 // zone after the last real week and a side panel showing this week's
-// breakdown + per-engine 5-tick bars. v1 sources from
-// mockVisibilityHistory; v2 will swap in visibility_snapshots rows.
+// breakdown + per-engine 5-tick bars. Reads real visibility_snapshots
+// rows when present; falls back to the deterministic mock when the
+// user is brand new or the cron hasn't run yet. The header chip
+// switches between LIVE and PREVIEW so the user always knows which
+// data they're looking at.
 
-export function VisibilityChartEditorial({ userId, signupDate, voiceHost }) {
-  const history = useMemo(
-    () => mockVisibilityHistory(userId, signupDate),
-    [userId, signupDate],
-  );
+export function VisibilityChartEditorial({ userId, signupDate, voiceHost, snapshots }) {
+  const hasReal = Array.isArray(snapshots) && snapshots.length > 0;
+  const history = useMemo(() => {
+    if (hasReal) {
+      // Real snapshot rows from public.visibility_snapshots — coerce
+      // to the same shape the mock returns so the chart code below
+      // doesn't have to branch.
+      return snapshots
+        .slice()
+        .sort((a, b) => a.week_number - b.week_number)
+        .map((s) => ({
+          week: s.week_number - 1,
+          snapshot_date: s.snapshot_date,
+          perplexity: s.perplexity_citations ?? 0,
+          chatgpt: s.chatgpt_citations ?? 0,
+          claude: s.claude_citations ?? 0,
+          total: (s.perplexity_citations ?? 0) + (s.chatgpt_citations ?? 0) + (s.claude_citations ?? 0),
+          questions: s.questions_asked ?? 5,
+        }));
+    }
+    return mockVisibilityHistory(userId, signupDate);
+  }, [hasReal, snapshots, userId, signupDate]);
 
   if (history.length === 0) return null;
 
@@ -730,7 +750,13 @@ export function VisibilityChartEditorial({ userId, signupDate, voiceHost }) {
       <div style={S.vis.headerRow}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="ed-eyebrow">AI Visibility · Weekly</span>
-          <span style={S.vis.preview}>PREVIEW</span>
+          {hasReal ? (
+            <span style={{ ...S.vis.preview, color: ACCENT.sig, borderColor: ACCENT.sig }}>
+              LIVE
+            </span>
+          ) : (
+            <span style={S.vis.preview}>PREVIEW</span>
+          )}
         </div>
         <div
           className="ed-serif"
@@ -747,7 +773,9 @@ export function VisibilityChartEditorial({ userId, signupDate, voiceHost }) {
           <span style={{ color: ACCENT.sig }}>{hostDisplay}</span> when asked your buyers' questions.
         </div>
         <div className="ed-mono" style={{ fontSize: 11, color: 'var(--paper-faint)', marginTop: 8 }}>
-          Real pipeline ships next session. Until then: client-side mock seeded off your user id.
+          {hasReal
+            ? 'Live data — cron runs daily, picks each user once per ~week. Perplexity wired; ChatGPT + Claude land later.'
+            : 'Mock data — set PERPLEXITY_API_KEY on the run-visibility-check function to start collecting real numbers.'}
         </div>
       </div>
 

@@ -72,6 +72,11 @@ export default function Dashboard() {
   // (security-invoker, RLS-scoped). Keyed by voice_id so KeywordForm
   // can show a strength chip next to each dropdown option.
   const [voiceStrengths, setVoiceStrengths] = useState({});
+  // Real visibility_snapshots rows for this user. When empty, the
+  // chart falls back to the deterministic mock (with a PREVIEW chip).
+  // First real row lands once the cron fires (daily 06:00 UTC) AND
+  // PERPLEXITY_API_KEY is set on the run-visibility-check function.
+  const [visibilitySnapshots, setVisibilitySnapshots] = useState([]);
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !user) return;
@@ -151,6 +156,17 @@ export default function Dashboard() {
     const byId = {};
     for (const s of strengthRows ?? []) byId[s.voice_id] = s;
     setVoiceStrengths(byId);
+
+    // Visibility snapshots are tiny (one row/week) — pull the last 26
+    // weeks so the chart has half a year of history when it exists.
+    const { data: snapshotRows } = await supabase
+      .from('visibility_snapshots')
+      .select(
+        'week_number, snapshot_date, perplexity_citations, chatgpt_citations, claude_citations, questions_asked',
+      )
+      .order('week_number', { ascending: true })
+      .limit(26);
+    setVisibilitySnapshots(snapshotRows ?? []);
   }, [user, articleLimit]);
 
   useEffect(() => {
@@ -409,6 +425,7 @@ export default function Dashboard() {
             userId={user.id}
             signupDate={user.created_at}
             voiceHost={voiceHost}
+            snapshots={visibilitySnapshots}
           />
         )}
 
