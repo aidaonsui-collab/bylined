@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../store.jsx';
 import AppNav from '../components/AppNav.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 
 const PASSWORD_MIN = 8;
 
@@ -34,6 +35,55 @@ export default function Settings() {
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [savingPw, setSavingPw] = useState(false);
+
+  // Tracking domain — the brand hostname the visibility cron uses to
+  // search AI-engine citations. Loaded lazily from subscriptions on
+  // first render (and re-loaded whenever the user logs in/out).
+  const [trackingDomain, setTrackingDomain] = useState('');
+  const [trackingLoaded, setTrackingLoaded] = useState(false);
+  const [trackingDirty, setTrackingDirty] = useState(false);
+  const [savingTracking, setSavingTracking] = useState(false);
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('tracking_domain')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      setTrackingDomain(data?.tracking_domain ?? '');
+      setTrackingLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const handleSaveTracking = async (e) => {
+    e.preventDefault();
+    setSavingTracking(true);
+    const { data, error } = await supabase.rpc('set_tracking_domain', {
+      p_domain: trackingDomain.trim(),
+    });
+    setSavingTracking(false);
+    if (error) {
+      const msg = error.message || '';
+      if (msg.includes('invalid_domain_format')) {
+        toast('Use a hostname like "acme.com" (no protocol, no path).', { tone: 'warn' });
+      } else if (msg.includes('no_active_subscription')) {
+        toast('You need an active subscription to configure visibility tracking.', { tone: 'warn' });
+      } else {
+        toast(msg || 'Could not save.', { tone: 'danger' });
+      }
+      return;
+    }
+    // RPC normalizes and returns the stored value (or null if cleared).
+    setTrackingDomain(data ?? '');
+    setTrackingDirty(false);
+    toast(data ? `Tracking ${data} for AI citations.` : 'Tracking domain cleared.', { tone: 'success' });
+  };
 
   const nameDirty = fullName.trim() !== (profile?.full_name ?? '').trim();
 
@@ -130,6 +180,51 @@ export default function Settings() {
                 disabled={!nameDirty || savingName}
               >
                 {savingName ? 'Saving…' : 'Save profile'}
+              </button>
+            </div>
+          </form>
+
+          {/* ─── AI visibility tracking ──────────────────────────
+              The brand hostname the weekly visibility cron checks
+              citations for. Falls back to auto-detected site URL when
+              empty, but auto-detection is unreliable for
+              bylined-hosted users (the platform domain doesn't
+              distinguish customers), so we ask explicitly. */}
+          <form
+            onSubmit={handleSaveTracking}
+            className="app-callout"
+            style={{ flexDirection: 'column', alignItems: 'stretch', gap: 14, marginTop: 16 }}
+          >
+            <div className="eyebrow">AI visibility tracking</div>
+
+            <label className="field">
+              <span className="field-label">Brand domain</span>
+              <input
+                className="input"
+                type="text"
+                value={trackingDomain}
+                onChange={(e) => {
+                  setTrackingDirty(true);
+                  setTrackingDomain(e.target.value);
+                }}
+                placeholder={trackingLoaded ? 'acme.com' : 'Loading…'}
+                maxLength={253}
+                disabled={savingTracking || !trackingLoaded}
+                autoComplete="off"
+                spellCheck="false"
+              />
+              <span style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>
+                The hostname the weekly cron searches for in Perplexity / ChatGPT citations. Just the domain — no <code>https://</code>, no path.
+              </span>
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={savingTracking || !trackingLoaded || !trackingDirty}
+              >
+                {savingTracking ? 'Saving…' : 'Save domain'}
               </button>
             </div>
           </form>

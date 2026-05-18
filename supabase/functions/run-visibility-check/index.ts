@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     weekNumber = row.out_week_number;
   }
 
-  const [{ data: sites }, { data: voices }] = await Promise.all([
+  const [{ data: sites }, { data: voices }, { data: sub }] = await Promise.all([
     admin
       .from("sites")
       .select("name, cms_type, cms_config")
@@ -98,25 +98,36 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1),
+    admin
+      .from("subscriptions")
+      .select("tracking_domain")
+      .eq("user_id", userId)
+      .in("status", ["active", "trialing"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // Domain-detection priority:
-  //   1. bylined_hosted site -> BYLINED_HOSTED_PUBLIC_BASE
-  //      (their published articles live at {base}/blog/{slug}, so
-  //      that's the host AI engines would cite)
-  //   2. WordPress/Webflow site's configured URL
-  //   3. Fall back to most-recent voice URL (least reliable: the
-  //      voice might be an emulation target, not the user's brand)
+  //   1. Customer-set subscriptions.tracking_domain (authoritative)
+  //   2. WordPress/Webflow site's configured URL (auto-detect for
+  //      customers who connected their own CMS)
+  //   3. bylined_hosted shared base — accurate enough for "any post
+  //      on the platform" but doesn't distinguish customers; only
+  //      reached when the customer hasn't set tracking_domain yet
+  //   4. Most-recent voice URL (least reliable: voice can be an
+  //      emulation target, not the user's brand)
   const site = sites?.[0];
-  let userDomain: string | null = null;
-  if (site?.cms_type === "bylined_hosted") {
+  let userDomain: string | null = extractDomain(sub?.tracking_domain);
+  if (!userDomain) {
+    userDomain = extractDomain(site?.cms_config?.url);
+  }
+  if (!userDomain && site?.cms_type === "bylined_hosted") {
     userDomain = extractDomain(BYLINED_HOSTED_PUBLIC_BASE);
   }
   if (!userDomain) {
     userDomain =
-      extractDomain(site?.cms_config?.url) ||
-      extractDomain(site?.name) ||
-      extractDomain(voices?.[0]?.source_url);
+      extractDomain(site?.name) || extractDomain(voices?.[0]?.source_url);
   }
 
   if (!userDomain) {

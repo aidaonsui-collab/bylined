@@ -123,7 +123,9 @@ export default function Dashboard() {
         .limit(500),
       supabase
         .from('subscriptions')
-        .select('plan, status, articles_used_this_period, articles_quota, current_period_end')
+        .select(
+          'plan, status, articles_used_this_period, articles_quota, current_period_end, tracking_domain',
+        )
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -433,6 +435,7 @@ export default function Dashboard() {
           sites={sites}
           voices={voices}
           hasArticles={hasArticles}
+          hasTrackingDomain={!!subscription?.tracking_domain}
           userId={user?.id}
         />
 

@@ -912,7 +912,7 @@ export function VisibilityChartEditorial({ userId, signupDate, voiceHost, snapsh
 
 const ONBOARD_DISMISS_KEY = 'bylined.editorial_onboarding_dismissed';
 
-export function Onboarding({ sites, voices, hasArticles, userId }) {
+export function Onboarding({ sites, voices, hasArticles, hasTrackingDomain, userId }) {
   const storageKey = userId ? `${ONBOARD_DISMISS_KEY}.${userId}` : null;
   const [dismissed, setDismissed] = useState(() => {
     if (!storageKey) return false;
@@ -929,6 +929,7 @@ export function Onboarding({ sites, voices, hasArticles, userId }) {
     { id: 'site', label: 'Connect a site', done: hasSite, href: '/app/sites' },
     { id: 'voice', label: 'Capture brand voice', done: hasVoice, href: '/app/voice' },
     { id: 'first', label: 'Ship your first article', done: hasArticles, href: null },
+    { id: 'domain', label: 'Set your tracking domain for AI visibility', done: !!hasTrackingDomain, href: '/app/settings' },
     { id: 'auto', label: 'Turn on auto-publish', done: hasSite && hasArticles, href: '/app/sites' },
   ];
   const done = items.filter((i) => i.done).length;
