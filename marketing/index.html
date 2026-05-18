@@ -504,5 +504,71 @@
 </div>
 
 <script src="app.js"></script>
+
+<!-- ── Hero A/B test (variant B = "business owner new to AI") ──────
+     Activate by appending ?v=b to the homepage URL. Single-file
+     swap so the production hero stays canonical; remove the
+     <script> below when the test ends. Variant content keeps the
+     same demo-form structure — only copy changes. -->
+<script>
+  (function () {
+    var p = new URLSearchParams(location.search);
+    if (p.get('v') !== 'b') return;
+
+    // Drop the "New" feature pill — non-AI-fluent persona doesn't
+    // care about feature announcements; only conversion-relevant
+    // signals stay above the fold.
+    var flag = document.querySelector('.hero-flag');
+    if (flag) flag.remove();
+
+    // Hero h1 — concrete customer behavior ("ask AI for
+    // recommendations") + clear ask ("be the answer"). Drops
+    // "with receipts" which reads as cash-register slang to a
+    // 50-year-old plumber.
+    var h1 = document.querySelector('.hero-h1');
+    if (h1) {
+      h1.innerHTML =
+        'Your customers ask AI for recommendations. ' +
+        '<span class="hero-h1-em">Be the answer.' +
+        '<svg class="hero-squiggle" viewBox="0 0 320 14" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path d="M2 8 Q 30 1, 60 7 Q 90 13, 120 6 Q 150 1, 180 8 Q 210 13, 240 6 Q 270 1, 318 8"/>' +
+        '</svg></span>';
+    }
+
+    // Lede — explains the buyer-behavior shift without jargon.
+    // No mention of "AEO", "citations" framing, or "receipts".
+    // Removes the "every morning" promise (credibility risk).
+    var lede = document.querySelector('.hero-lede');
+    if (lede) {
+      lede.textContent =
+        "ChatGPT, Perplexity, and Google's AI now answer most buyer questions before anyone clicks a link. Bylined writes verified articles that get you cited — so when someone asks AI about your industry, your name shows up.";
+    }
+
+    // CTA button — concrete verb that matches the audit demo.
+    var btn = document.querySelector('#demo-submit');
+    if (btn) {
+      btn.innerHTML =
+        'Check if AI mentions you ' +
+        '<svg class="icon"><use href="#i-arrow-right"/></svg>';
+    }
+
+    // Trust strip — adds a time commitment (60s lifts CTA
+    // conversion), drops the awkward "Or", and uses the actual
+    // current pricing (Free 14-day trial then $99/mo) instead of
+    // the stale $39 flat number.
+    var fine = document.querySelector('.hero-cta-fine');
+    if (fine) {
+      fine.innerHTML =
+        '<svg class="icon icon-xs"><use href="#i-check"/></svg> Real test on your URL' +
+        ' <span class="dot-sep"></span> ' +
+        '<svg class="icon icon-xs"><use href="#i-check"/></svg> 60 seconds, no signup' +
+        ' <span class="dot-sep"></span> ' +
+        '<svg class="icon icon-xs"><use href="#i-check"/></svg> Free 14 days, then $99/mo if you stay';
+    }
+
+    // Doc title for sharing — variant gets its own preview card.
+    document.title = 'Bylined — Be the answer when your customers ask AI';
+  })();
+</script>
 </body>
 </html>
