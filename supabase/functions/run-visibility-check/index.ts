@@ -19,6 +19,11 @@ const PERPLEXITY_MODEL = Deno.env.get("PERPLEXITY_MODEL") ?? "sonar";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const OPENAI_SEARCH_MODEL =
   Deno.env.get("OPENAI_SEARCH_MODEL") ?? "gpt-4o-search-preview";
+// Where bylined_hosted blogs actually publish. Articles live at
+// {base}/blog/{slug}, so this is the domain to search for citations
+// of. Defaults match publish-article's default.
+const BYLINED_HOSTED_PUBLIC_BASE =
+  Deno.env.get("BYLINED_HOSTED_PUBLIC_BASE") ?? "https://getbylined.com";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -82,7 +87,7 @@ Deno.serve(async (req) => {
   const [{ data: sites }, { data: voices }] = await Promise.all([
     admin
       .from("sites")
-      .select("name, cms_config")
+      .select("name, cms_type, cms_config")
       .eq("user_id", userId)
       .eq("is_active", true)
       .order("created_at", { ascending: true })
@@ -95,10 +100,24 @@ Deno.serve(async (req) => {
       .limit(1),
   ]);
 
-  const userDomain =
-    extractDomain(sites?.[0]?.cms_config?.url) ||
-    extractDomain(sites?.[0]?.name) ||
-    extractDomain(voices?.[0]?.source_url);
+  // Domain-detection priority:
+  //   1. bylined_hosted site -> BYLINED_HOSTED_PUBLIC_BASE
+  //      (their published articles live at {base}/blog/{slug}, so
+  //      that's the host AI engines would cite)
+  //   2. WordPress/Webflow site's configured URL
+  //   3. Fall back to most-recent voice URL (least reliable: the
+  //      voice might be an emulation target, not the user's brand)
+  const site = sites?.[0];
+  let userDomain: string | null = null;
+  if (site?.cms_type === "bylined_hosted") {
+    userDomain = extractDomain(BYLINED_HOSTED_PUBLIC_BASE);
+  }
+  if (!userDomain) {
+    userDomain =
+      extractDomain(site?.cms_config?.url) ||
+      extractDomain(site?.name) ||
+      extractDomain(voices?.[0]?.source_url);
+  }
 
   if (!userDomain) {
     return jsonResponse(400, {
