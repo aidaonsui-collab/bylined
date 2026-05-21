@@ -95,8 +95,8 @@ function shell({ title, description, bodyClass = '', content, head = '' }) {
         <span class="brand-wm">bylined</span>
       </a>
       <div class="mkt-nav-links">
-        <a href="/receipts.html">Receipts</a>
-        <a href="/pricing.html">Pricing</a>
+        <a href="/receipts">Receipts</a>
+        <a href="/pricing">Pricing</a>
         <a href="/blog/">Blog</a>
       </div>
       <div class="mkt-nav-cta">
@@ -118,14 +118,14 @@ function shell({ title, description, bodyClass = '', content, head = '' }) {
       <div class="footer-cols">
         <div>
           <div class="footer-h">Product</div>
-          <a href="/receipts.html">Receipts</a>
-          <a href="/pricing.html">Pricing</a>
+          <a href="/receipts">Receipts</a>
+          <a href="/pricing">Pricing</a>
           <a href="/blog/">Blog</a>
         </div>
         <div>
           <div class="footer-h">Legal</div>
-          <a href="/privacy.html">Privacy</a>
-          <a href="/terms.html">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
         </div>
         <div>
           <div class="footer-h">Get in touch</div>
@@ -353,6 +353,46 @@ function renderPost(post) {
   });
 }
 
+// sitemap.xml — every indexable clean URL: the static marketing pages
+// plus one entry per published blog post. Helps Google discover posts
+// reliably. All URLs are the clean (no-.html) form so we never list a
+// URL that cleanUrls would redirect.
+function renderSitemap(posts) {
+  const staticPaths = ['/', '/receipts', '/pricing', '/blog/', '/privacy', '/terms'];
+  const entries = [
+    ...staticPaths.map((p) => ({ loc: `${SITE_ORIGIN}${p}` })),
+    ...posts.map((p) => ({
+      loc: `${SITE_ORIGIN}/blog/${p.slug}/`,
+      lastmod: p.published_at
+        ? new Date(p.published_at).toISOString().slice(0, 10)
+        : null,
+    })),
+  ];
+  const body = entries
+    .map(
+      (e) =>
+        `  <url>\n    <loc>${esc(e.loc)}</loc>` +
+        (e.lastmod ? `\n    <lastmod>${e.lastmod}</lastmod>` : '') +
+        `\n  </url>`,
+    )
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${body}
+</urlset>
+`;
+}
+
+// robots.txt — allow everything, point crawlers at the sitemap so it
+// gets auto-discovered without a manual Search Console submission.
+function renderRobots() {
+  return `User-agent: *
+Allow: /
+
+Sitemap: ${SITE_ORIGIN}/sitemap.xml
+`;
+}
+
 async function fetchPosts() {
   const url = `${SUPABASE_URL}/rest/v1/blog_posts` +
     `?select=slug,title,meta_description,body_html,sources_html,published_at` +
@@ -392,6 +432,12 @@ async function main() {
     await writeFile(join(dir, 'index.html'), renderPost(post), 'utf8');
     console.log(`[build] wrote blog/${post.slug}/index.html`);
   }
+
+  // sitemap.xml + robots.txt — written to the site root, regenerated
+  // every build so new posts appear in the sitemap automatically.
+  await writeFile(join(__dirname, 'sitemap.xml'), renderSitemap(posts), 'utf8');
+  await writeFile(join(__dirname, 'robots.txt'), renderRobots(), 'utf8');
+  console.log('[build] wrote sitemap.xml + robots.txt');
 
   console.log('[build] done');
 }
