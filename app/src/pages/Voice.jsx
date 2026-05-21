@@ -360,6 +360,8 @@ export default function Voice() {
                     isOpen={openId === v.id}
                     onToggle={() => setOpenId(openId === v.id ? null : v.id)}
                     onDelete={() => handleDelete(v)}
+                    toast={toast}
+                    onChanged={load}
                   />
                 ))}
               </div>
@@ -459,7 +461,7 @@ function ExtractForm({ initialUrl = '', onCancel, onCreated, toast }) {
   );
 }
 
-function VoiceRow({ voice, strength, isOpen, onToggle, onDelete }) {
+function VoiceRow({ voice, strength, isOpen, onToggle, onDelete, toast, onChanged }) {
   const fp = voice.fingerprint ?? {};
   const traits = fp.voice_traits ?? [];
   const phrases = fp.signature_phrases ?? [];
@@ -557,6 +559,7 @@ function VoiceRow({ voice, strength, isOpen, onToggle, onDelete }) {
               </p>
             </Section>
           )}
+          <AudienceEditor voice={voice} toast={toast} onSaved={onChanged} />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
             <button
               type="button"
@@ -569,6 +572,60 @@ function VoiceRow({ voice, strength, isOpen, onToggle, onDelete }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Editable "who is this article for" field. Stored inside the voice's
+// fingerprint JSON (audience_context) — the worker already passes the
+// whole fingerprint to the generator, so no schema change was needed.
+// The generator treats it as an override on the framing implied by the
+// article's RAG source material.
+function AudienceEditor({ voice, toast, onSaved }) {
+  const fp = voice.fingerprint ?? {};
+  const [text, setText] = useState(fp.audience_context ?? '');
+  const [busy, setBusy] = useState(false);
+  const dirty = text.trim() !== (fp.audience_context ?? '').trim();
+
+  const save = async () => {
+    setBusy(true);
+    const { error } = await supabase
+      .from('voices')
+      .update({ fingerprint: { ...fp, audience_context: text.trim() || null } })
+      .eq('id', voice.id);
+    setBusy(false);
+    if (error) {
+      toast?.(error.message, { tone: 'danger' });
+      return;
+    }
+    toast?.('Audience context saved.', { tone: 'success' });
+    onSaved?.();
+  };
+
+  return (
+    <Section label="Audience & context">
+      <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '0 0 6px', lineHeight: 1.5 }}>
+        Who the article is for and how to frame it. The writer treats this as an
+        override on the framing implied by its source material.
+      </p>
+      <textarea
+        className="input"
+        rows={3}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="e.g. Bilingual Rio Grande Valley readers — Spanish is a first language here, not a foreign one. Never write travel-phrasebook style."
+        style={{ resize: 'vertical', fontSize: 13, lineHeight: 1.5, width: '100%' }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={save}
+          disabled={busy || !dirty}
+        >
+          {busy ? 'Saving…' : 'Save context'}
+        </button>
+      </div>
+    </Section>
   );
 }
 

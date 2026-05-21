@@ -48,6 +48,11 @@ CRITICAL RULES (any violation invalidates the citation):
 
 6. body_markdown contains NO [^N] markers. The system inserts those automatically based on your citations.
 
+7. NEVER write ABOUT your sources. State facts directly. The body must not name, describe, rate, or promote the websites, apps, or documents your facts came from — the citation system attributes sources separately, the prose never does. A source's self-description ("the world's most popular X", "a comprehensive guide to Y") is NOT a fact about your topic — never reproduce it.
+   BAD: "SpanishDictionary.com is the world's most popular Spanish-English dictionary."
+   BAD: "A resource listing 200+ salon phrases confirms this."
+   GOOD: state the fact on its own — "The Spanish word for colorist is colorista."
+
 EXAMPLE (good):
   body_markdown: "Email marketing delivers an average $36 return for every $1 spent, the highest ROI of any channel."
   citations: [{

@@ -19,6 +19,11 @@ export const VoiceFingerprintSchema = z.object({
   technical_level: z.enum(["beginner", "intermediate", "expert"]),
   taboo: z.array(z.string()),
   example_paragraph: z.string(),
+  // User-authored, NOT extracted: who articles are for and how to frame
+  // them. Threaded into the generator prompt to override the audience
+  // framing implied by RAG source material. Optional — older voices and
+  // freshly-extracted ones won't have it until the user fills it in.
+  audience_context: z.string().optional(),
 });
 export type VoiceFingerprint = z.infer<typeof VoiceFingerprintSchema>;
 
@@ -149,7 +154,18 @@ export function voicePromptFragment(fp: VoiceFingerprint): string {
   // target of 16 that's 24 — generous; tightens naturally as fingerprint
   // shortens.
   const sentMax = Math.round(target * 1.5);
-  return `BRAND VOICE — match this style. These rules sit ALONGSIDE the citation rules, not below them.
+  // Audience block goes FIRST and is framed as an override — the
+  // generator otherwise inherits the audience/framing of whatever RAG
+  // sources it was given (e.g. a "talk to your colorist in Spanish"
+  // keyword pulls Spanish-tourist phrasebook sources and the article
+  // comes out written for a tourist instead of a bilingual local).
+  const audienceBlock = fp.audience_context
+    ? `AUDIENCE & FRAMING — who this article is for. This OVERRIDES any audience or framing implied by your source material. If a source reads like it was written for a different reader (a tourist, a different region, a different expertise level), discard its framing and write for the audience described here:
+${fp.audience_context}
+
+`
+    : "";
+  return `${audienceBlock}BRAND VOICE — match this style. These rules sit ALONGSIDE the citation rules, not below them.
 
 - Tone: ${fp.tone}
 - Voice traits: ${fp.voice_traits.join("; ")}
