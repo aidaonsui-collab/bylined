@@ -3,20 +3,23 @@ import { fuzzyMatch } from "./verifier.js";
 import type { Fact } from "./types.js";
 import type { FetchedPage } from "./fetcher.js";
 
-const SYSTEM_PROMPT = `You extract verifiable facts from web pages. Output JSON only.
+const SYSTEM_PROMPT = `You extract verifiable facts from a web page that are RELEVANT to a specific article topic. Output JSON only.
 
-For each fact, include:
+You are given an ARTICLE TOPIC (and sometimes its intended audience). Extract only facts that would genuinely help someone reading an article on that topic. A fact can be accurate, verifiable, well-sourced — and still irrelevant. If it does not serve the article topic, SKIP IT.
+
+For each fact you keep, include:
 - type: "stat" (numeric or percentage), "quote" (named-source quotation), or "claim" (factual statement)
 - exact_passage: the exact sentence containing the fact, copied VERBATIM from the page
 - number: for type=stat, the numeric value as it appears (e.g., "41.3%", "$5M", "412")
 
 Rules:
+- RELEVANCE FIRST. Before keeping a fact, ask: does this directly help a reader of an article on the given TOPIC? If not, skip it — even if it is a great, well-sourced fact. Example: for a topic about practical salon vocabulary, the etymology of a color word, or an unrelated idiom, is OFF-TOPIC — skip it.
 - DO NOT paraphrase. Copy passages verbatim, exactly as they appear in the source.
 - exact_passage MUST be a contiguous substring of the page text. If you cannot find a verbatim sentence, skip the fact.
 - Only extract facts that are concrete and citation-worthy.
 - If a sentence contains a stat AND a quote, extract them as separate facts.
-- Return at most 8 facts per page (best ones first).
-- Return [] if no extractable facts exist.`;
+- Return at most 8 facts per page (most relevant first).
+- Return [] if the page has no facts relevant to the topic. An entire page can be off-topic — [] is the correct, expected answer in that case, not a failure.`;
 
 interface RawFact {
   type: "stat" | "quote" | "claim";
@@ -24,7 +27,11 @@ interface RawFact {
   number?: string;
 }
 
-export async function extractFacts(page: FetchedPage): Promise<Fact[]> {
+export async function extractFacts(
+  page: FetchedPage,
+  keyword: string,
+  audienceContext?: string,
+): Promise<Fact[]> {
   const text = page.plainText.slice(0, 12000);
   if (text.length < 200) return [];
 
@@ -33,7 +40,11 @@ export async function extractFacts(page: FetchedPage): Promise<Fact[]> {
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `URL: ${page.url}\n\nPage text:\n${text}\n\nExtract facts as a JSON array.`,
+        content:
+          `ARTICLE TOPIC: ${keyword}\n` +
+          (audienceContext ? `INTENDED AUDIENCE: ${audienceContext}\n` : "") +
+          `\nURL: ${page.url}\n\nPage text:\n${text}\n\n` +
+          `Extract the facts from this page that are RELEVANT to the article topic, as a JSON array. If nothing on the page is relevant, return [].`,
       },
     ],
     { costType: "llm_extraction" }

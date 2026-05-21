@@ -60,7 +60,7 @@ export async function generate(opts: GenerateOptions): Promise<Article> {
   log(`extracting facts...`);
   const factArrays = await Promise.all(
     successfulPages.map((p) =>
-      extractFacts(p).catch((e: unknown) => {
+      extractFacts(p, opts.keyword, opts.voice?.audience_context).catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : String(e);
         log(`extract failed for ${p.url}: ${msg}`);
         return [] as Fact[];
