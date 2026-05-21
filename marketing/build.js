@@ -225,6 +225,33 @@ function renderIndex(posts) {
 const SITE_ORIGIN = 'https://getbylined.com';
 const OG_IMAGE = `${SITE_ORIGIN}/og-default.png`;
 
+// Pull FAQ question/answer pairs out of a rendered article body so we
+// can emit FAQPage structured data. The generator ends articles with an
+// "## Frequently Asked Questions" H2, then ### question / <p> answer
+// pairs — we find that H2 and walk the following h3 + content blocks.
+// Returns [] for articles with no FAQ section (e.g. ones generated
+// before the structured-article prompt), so older posts degrade
+// cleanly with no FAQPage schema rather than breaking.
+function extractFaq(bodyHtml) {
+  if (!bodyHtml) return [];
+  const stripTags = (s) =>
+    String(s).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const faqStart = bodyHtml.search(
+    /<h2[^>]*>\s*frequently asked questions\s*<\/h2>/i,
+  );
+  if (faqStart === -1) return [];
+  const faqHtml = bodyHtml.slice(faqStart);
+  const pairs = [];
+  const re = /<h3[^>]*>(.*?)<\/h3>([\s\S]*?)(?=<h3[^>]*>|<h2[^>]*>|$)/gi;
+  let m;
+  while ((m = re.exec(faqHtml)) !== null) {
+    const question = stripTags(m[1]);
+    const answer = stripTags(m[2]);
+    if (question && answer) pairs.push({ question, answer });
+  }
+  return pairs;
+}
+
 // Build the per-post <head> extras: canonical link, og:image + article
 // meta, and JSON-LD BlogPosting structured data. The structured data is
 // the highest-leverage AEO signal — it's how AI crawlers map the page
@@ -258,6 +285,25 @@ function postHead(post) {
   // Escape '<' so a title/description containing "</script>" can't
   // break out of the JSON-LD <script> block.
   const schemaJson = JSON.stringify(schema).replace(/</g, '\\u003c');
+
+  // FAQPage schema — only emitted when the article actually has an
+  // FAQ section. FAQPage is one of the most-cited structures in AI
+  // search, so this is high-leverage for articles that include it.
+  const faq = extractFaq(post.body_html);
+  let faqScript = '';
+  if (faq.length > 0) {
+    const faqSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faq.map((f) => ({
+        '@type': 'Question',
+        name: f.question,
+        acceptedAnswer: { '@type': 'Answer', text: f.answer },
+      })),
+    };
+    faqScript = `\n<script type="application/ld+json">${JSON.stringify(faqSchema).replace(/</g, '\\u003c')}</script>`;
+  }
+
   return `
 <link rel="canonical" href="${esc(url)}" />
 <meta property="og:url" content="${esc(url)}" />
@@ -267,7 +313,7 @@ function postHead(post) {
 <meta property="article:published_time" content="${esc(published)}" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="${OG_IMAGE}" />
-<script type="application/ld+json">${schemaJson}</script>`;
+<script type="application/ld+json">${schemaJson}</script>${faqScript}`;
 }
 
 // /blog/{slug}/ — single post. body_html and sources_html come from

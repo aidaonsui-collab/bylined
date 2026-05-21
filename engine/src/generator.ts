@@ -24,7 +24,7 @@ OUTPUT SCHEMA (JSON):
 {
   "title": "Article title",
   "meta_description": "120-155 char SEO meta description",
-  "body_markdown": "Article body in markdown. Plain prose. NO [^N] markers anywhere.",
+  "body_markdown": "Article body in markdown — headings, paragraphs, and lists. NO [^N] markers anywhere.",
   "citations": [
     {
       "claim": "<exact substring of body_markdown that this citation supports>",
@@ -68,12 +68,20 @@ EXAMPLE (bad — alignment failure):
   }]
   ✗ Numbers 36 and 1 not in exact_quote_used. The cited fact doesn't support the claim.
 
-Other rules:
-- Aim for 800-1200 words.
-- Use H2 (##) and H3 (###) markdown headings.
-- Begin with a strong intro paragraph.
-- Cite at least 8 facts; ideally 15-30.
-- If a sentence has no supporting fact in the library, write it WITHOUT citing OR skip the claim.`;
+ARTICLE STRUCTURE (write body_markdown in exactly this order — this is how AI answer engines decide whether to cite you):
+
+1. DIRECT ANSWER FIRST. The opening paragraph (2-4 sentences) must directly and completely answer the implied question of the topic. It must be self-contained — quotable on its own with zero setup. NO throat-clearing ("In today's landscape...", "Businesses everywhere...", "As the market evolves..."). Sentence one answers the question.
+
+2. KEY TAKEAWAYS. Immediately after the opening paragraph, write a line that is exactly "**Key takeaways:**" then 3-5 markdown bullet points ("- "), each one scannable sentence capturing a core point.
+
+3. BODY SECTIONS. Then the main content under H2 headings (##). Phrase H2 headings as the actual questions a reader would ask ("How does X work?", "What does Y cost?", "When should you use Z?") — not bare labels ("Overview", "Pricing", "Benefits"). Use H3 (###) for sub-points. Within sections, use bulleted or numbered lists for any set of steps, criteria, examples, or comparisons — AI engines extract structured lists far more readily than walls of prose. Include at least 3 lists across the article.
+
+4. FAQ SECTION. End the article with an H2 heading exactly "## Frequently Asked Questions", followed by 3-5 question/answer pairs. Each question is an H3 heading (### ...) ending with "?". Each answer is 1-3 sentences in a paragraph directly below its question. Make these genuine follow-up questions a reader would ask — distinct from the H2 section headings above.
+
+LENGTH & CITATIONS:
+- Main body: 900-1300 words, plus the Key takeaways list and the FAQ section.
+- Cite at least 8 facts; ideally 15-30. Citations may appear anywhere in body_markdown — the opening answer, body sections, and FAQ answers all count.
+- If a sentence has no supporting fact in the library, write it WITHOUT citing OR skip the claim. Never invent a citation to satisfy the structure.`;
 
 export async function generateArticle(
   keyword: string,
