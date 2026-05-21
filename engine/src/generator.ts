@@ -53,6 +53,8 @@ CRITICAL RULES (any violation invalidates the citation):
    BAD: "A resource listing 200+ salon phrases confirms this."
    GOOD: state the fact on its own — "The Spanish word for colorist is colorista."
 
+8. RELEVANCE OVER LENGTH. The facts library is a menu, not a checklist — use ONLY the facts that help the reader do the specific thing the title promises. A fact can be accurate, well-sourced, and still not belong: if it does not serve the reader's actual goal, leave it out. Never add a section just to reach the word count. If you catch yourself writing "this won't come up", "though you may not need this", or similar hedges — delete that section entirely. A tight 900-word article with zero filler beats a padded 1300-word one. The word range in LENGTH & CITATIONS below is a ceiling for RELEVANT material, not a quota to fill.
+
 EXAMPLE (good):
   body_markdown: "Email marketing delivers an average $36 return for every $1 spent, the highest ROI of any channel."
   citations: [{
