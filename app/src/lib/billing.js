@@ -51,7 +51,7 @@ export const PLANS = [
     delta: 'Everything in Pilot, plus auto-publish, approval workflow, and the full CMS roster.',
     tagline: 'Most operators pick this',
     featured: true,
-    priceId: 'price_1TUvxMIa0nbOr6yhyG8OMtw0',
+    priceId: 'price_1TZUl1PGhrJrE3T4JDmEuCsu',
   },
   {
     id: 'agency',
@@ -65,7 +65,7 @@ export const PLANS = [
     persona: 'Agencies managing 3–10 client sites — white-label + per-client branding.',
     delta: 'Everything in Studio, plus white-label, bulk publishing across clients, and a 99.5% SLA.',
     tagline: 'White-label for clients',
-    priceId: 'price_1TUvxNIa0nbOr6yhVpaaa4mg',
+    priceId: 'price_1TZUlTPGhrJrE3T4jB91GgbU',
   },
   {
     id: 'scale',
@@ -79,7 +79,7 @@ export const PLANS = [
     persona: 'Programmatic SEO + multi-brand portfolios. Volume, SLA, Slack support.',
     delta: 'Everything in Agency, plus reseller billing, a success manager, and a 99.9% SLA.',
     tagline: 'Volume + SLA',
-    priceId: 'price_1TUvxOIa0nbOr6yh6rcfq1Z3',
+    priceId: 'price_1TZUllPGhrJrE3T4xwRZgix1',
   },
 ];
 
