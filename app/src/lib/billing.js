@@ -48,7 +48,7 @@ export const PLANS = [
     articles: 30,
     description: '30 articles / mo',
     persona: 'Solo founders + content ops shipping ~1 article/day on one brand.',
-    delta: 'Everything in Pilot, plus auto-publish, approval workflow, and the full CMS roster.',
+    delta: 'Everything in Pilot, no trial cap — 30 reviewed articles a month, publishing to every supported CMS.',
     tagline: 'Most operators pick this',
     featured: true,
     priceId: 'price_1TZUl1PGhrJrE3T4JDmEuCsu',

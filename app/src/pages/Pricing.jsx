@@ -110,8 +110,7 @@ export default function Pricing() {
           </div>
 
           <p className="app-fineprint" style={{ marginTop: 32, fontSize: 12.5, color: 'var(--fg-subtle)' }}>
-            Test mode — no real charges. Use Stripe test card{' '}
-            <span className="mono">4242 4242 4242 4242</span> with any future date and CVC.
+            Secure checkout by Stripe. Change plan or cancel anytime from your Billing settings.
           </p>
         </div>
       </main>
