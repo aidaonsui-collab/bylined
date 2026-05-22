@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     return jsonResponse(401, { error: "Invalid session" });
   }
 
-  let body: { voice_id?: string; count?: number } = {};
+  let body: { voice_id?: string; count?: number; site_id?: string; seed?: string } = {};
   try {
     body = await req.json();
   } catch {
@@ -81,6 +81,14 @@ Deno.serve(async (req) => {
   // Clamp count to a reasonable range. 15 is the sweet spot for the
   // suggestion panel (one screen, no scroll).
   const count = Math.min(Math.max(body.count ?? 15, 5), 30);
+  // Optional explicit topic. When set, it — not the existing article
+  // history — defines the vertical the suggestions sit in. This is what
+  // lets a multi-brand account steer suggestions toward a brand whose
+  // article history is thin or dominated by a different vertical.
+  const seed = typeof body.seed === "string" ? body.seed.trim().slice(0, 200) : "";
+  // Optional site scope. When set, the dedup/grounding query only looks
+  // at that site's articles instead of every article on the account.
+  const siteId = typeof body.site_id === "string" && body.site_id ? body.site_id : null;
 
   // Fetch voice: either the explicitly requested one or the latest.
   let voiceQuery = userClient
@@ -106,9 +114,11 @@ Deno.serve(async (req) => {
 
   // Pull recent article keywords + titles to dedupe suggestions against.
   // 50 rows is plenty — past that, topics drift and the dedup signal weakens.
-  const { data: recent } = await userClient
-    .from("articles")
-    .select("keyword, title")
+  // Scope to one site when the caller asked for it, so e.g. a payments
+  // blog on the same account can't poison keyword ideas for a beauty brand.
+  let articlesQuery = userClient.from("articles").select("keyword, title");
+  if (siteId) articlesQuery = articlesQuery.eq("site_id", siteId);
+  const { data: recent } = await articlesQuery
     .order("generated_at", { ascending: false })
     .limit(50);
 
@@ -128,6 +138,7 @@ Deno.serve(async (req) => {
     voiceTraits: fp.voice_traits ?? [],
     recentKeywords,
     recentTitles,
+    seed,
     count,
   });
 
@@ -163,6 +174,7 @@ function buildPrompt({
   voiceTraits,
   recentKeywords,
   recentTitles,
+  seed,
   count,
 }: {
   sourceUrl: string | null;
@@ -172,18 +184,32 @@ function buildPrompt({
   voiceTraits: string[];
   recentKeywords: string[];
   recentTitles: string[];
+  seed: string;
   count: number;
 }): string {
-  // Voice traits + signature phrases are signal about WHAT this brand
-  // tends to write about and HOW they frame it. Recent articles ground
-  // adjacency — suggestions should cluster around existing topics
-  // (sibling subtopics), not drift into unrelated verticals.
+  // Voice traits + signature phrases are signal about HOW this brand
+  // frames things. The vertical (WHAT to write about) comes from either
+  // an explicit seed topic or, failing that, the existing articles.
   const phraseHint = signaturePhrases.slice(0, 6).join(", ");
   const traitsHint = voiceTraits.slice(0, 4).map((t) => `- ${t}`).join("\n");
   const recentHint = [...recentKeywords, ...recentTitles]
     .slice(0, 40)
     .map((s) => `- ${s}`)
     .join("\n");
+
+  const hasSeed = Boolean(seed);
+  // With a seed, the seed defines the vertical and prior articles are
+  // ONLY a dedup list. Without one, prior articles define the vertical
+  // (the original behaviour).
+  const topicBlock = hasSeed
+    ? `TOPIC FOCUS (every keyword must sit inside this vertical)\n${seed}\n\n`
+    : "";
+  const coveredHeader = hasSeed
+    ? "ALREADY WRITTEN (only for de-duplication — do NOT treat these as the vertical):"
+    : "ALREADY COVERED (don't suggest duplicates or close variants — pick sibling subtopics):";
+  const verticalRule = hasSeed
+    ? `- Stay strictly inside the TOPIC FOCUS. If the "already written" list is a different vertical, ignore it for topic and use it only to avoid repeats`
+    : "- Stay in the SAME vertical as the existing articles — extend, don't pivot";
 
   return `You're an SEO strategist suggesting keyword ideas for a brand's content pipeline.
 
@@ -194,14 +220,14 @@ BRAND CONTEXT
 - Signature phrases (style cues): ${phraseHint || "n/a"}
 ${traitsHint ? `- Voice traits:\n${traitsHint}` : ""}
 
-ALREADY COVERED (don't suggest duplicates or close variants — pick sibling subtopics):
+${topicBlock}${coveredHeader}
 ${recentHint || "(no prior articles — green field)"}
 
 TASK
 Suggest ${count} long-tail SEO keyword ideas this brand would want to rank for. Each keyword must:
 - Be 4-10 words
 - Be buyer-intent or comparison-style ("how to X", "X vs Y", "X benchmarks 2026") or a deep-dive informational angle ("when to switch from X to Y")
-- Stay in the SAME vertical as the existing articles — extend, don't pivot
+${verticalRule}
 - Have real search demand (avoid obscure jargon, inside-baseball terms)
 - Be specific enough that a verified article with cited sources can be written about it
 
@@ -229,31 +255,47 @@ async function callMinimax(prompt: string, count: number): Promise<Suggestion[]>
   // tiny output (~50 tokens per item).
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${MINIMAX_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MINIMAX_MODEL,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You return JSON only. No prose before or after, no code fences.",
-          },
-          { role: "user", content: prompt },
-        ],
-        temperature: attempt === 0 ? 0.7 : 0.85,
-        // M2.7 is a reasoning model — hidden CoT eats from max_tokens
-        // before any JSON gets emitted. Floor of 4000 leaves room for
-        // ~2000-3000 reasoning + JSON envelope (~50 tokens per item).
-        // Bumps to 8000 for larger counts to keep the cushion.
-        max_tokens: Math.min(4000 + count * 100, 8000),
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${MINIMAX_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MINIMAX_MODEL,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You return JSON only. No prose before or after, no code fences.",
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature: attempt === 0 ? 0.7 : 0.85,
+          // M2.7 is a reasoning model — hidden CoT eats from max_tokens
+          // before any JSON gets emitted. Floor of 4000 leaves room for
+          // ~2000-3000 reasoning + JSON envelope (~50 tokens per item).
+          // Bumps to 8000 for larger counts to keep the cushion.
+          max_tokens: Math.min(4000 + count * 100, 8000),
+        }),
+        // 60s timeout — M2.7's hidden chain-of-thought regularly
+        // stretches past 30s, which was aborting before the retry loop
+        // could even react. Edge function ceiling is 150s.
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (e) {
+      // AbortSignal.timeout throws a TimeoutError. Surface a clear,
+      // actionable message instead of the raw "signal timed out".
+      const name = e instanceof Error ? e.name : "";
+      if (name === "TimeoutError" || String(e).includes("timed out")) {
+        throw new Error(
+          "MiniMax took too long (>60s). The model gets stuck deliberating on large prompts. Try again — it usually goes through on the next attempt.",
+        );
+      }
+      throw e;
+    }
 
     if (!res.ok) {
       throw new Error(`MiniMax HTTP ${res.status}: ${await res.text()}`);

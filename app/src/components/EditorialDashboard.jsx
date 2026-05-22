@@ -1053,15 +1053,21 @@ export function KeywordForm({
   const [suggestionsError, setSuggestionsError] = useState(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [addedSet, setAddedSet] = useState(new Set());
+  // Optional topic to steer suggestions. Without it, ideas are grounded
+  // on the selected site's article history; with it, the topic wins.
+  const [seed, setSeed] = useState('');
   const hasVoice = voices && voices.length > 0;
 
   const loadSuggestions = async () => {
     setLoadingSuggestions(true);
     setSuggestionsError(null);
-    // Pass through the currently-selected voice if any, so suggestions
-    // match whichever brand voice the user has dialed in for this batch.
+    // Pass the selected voice + auto-publish site so suggestions are
+    // grounded in the right brand (not every article on the account),
+    // plus an optional seed topic that overrides history when set.
     const result = await fetchKeywordSuggestions({
       voiceId: voiceId || undefined,
+      siteId: autoPublishSiteId || undefined,
+      seed: seed.trim() || undefined,
       count: 15,
     });
     setLoadingSuggestions(false);
@@ -1113,6 +1119,29 @@ export function KeywordForm({
           </button>
           <span style={S.kw.tag}>BATCH</span>
         </div>
+      </div>
+
+      {/* Optional topic seed — steers "Suggest keywords" so a brand
+          whose article history is thin or off-vertical still gets
+          on-topic ideas. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          value={seed}
+          onChange={(e) => setSeed(e.target.value)}
+          placeholder="Topic to focus on, e.g. hair salons, barbers, Rio Grande Valley"
+          disabled={loadingSuggestions || submitting}
+          style={{
+            flex: '1 1 280px', minWidth: 0, maxWidth: 480,
+            background: 'var(--ink-2)', border: '1px solid var(--rule)',
+            color: 'var(--paper)', borderRadius: 2,
+            fontFamily: 'var(--ed-mono)', fontSize: 12, padding: '8px 10px',
+            outline: 'none',
+          }}
+        />
+        <span className="ed-mono" style={{ fontSize: 10.5, color: 'var(--paper-faint)', letterSpacing: '0.04em' }}>
+          steers Suggest keywords · blank uses your article history
+        </span>
       </div>
 
       {suggestionsError && (
