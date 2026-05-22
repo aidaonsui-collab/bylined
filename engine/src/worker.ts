@@ -260,7 +260,9 @@ async function runJob(job: Job): Promise<void> {
       log,
     });
 
-    // 3. Insert the article. Status='draft' until publish wires up.
+    // 3. Insert the article in 'pending_review'. Every generated
+    //    article waits for a human audit before it can be published —
+    //    no article reaches a live site unreviewed.
     const { data: inserted, error: insertErr } = await admin
       .from("articles")
       .insert({
@@ -274,7 +276,7 @@ async function runJob(job: Job): Promise<void> {
         pass_rate: article.pass_rate,
         aeo_score: article.aeo_score ?? null,
         voice_match_score: article.voice_match_score ?? null,
-        status: "draft",
+        status: "pending_review",
         generated_at: article.generated_at,
       })
       .select("id")
@@ -309,34 +311,13 @@ async function runJob(job: Job): Promise<void> {
       );
     }
 
-    // 4c. Auto-publish if the job asked for it. Currently only the
-    //     bylined_hosted target is wired here — WordPress / Webflow
-    //     credentials live on the site row and we don't want the
-    //     worker reaching into those flows yet. Sites of those types
-    //     emit a warning and the article stays a draft (user can
-    //     publish manually from the dashboard).
-    if (job.auto_publish_site_id) {
-      try {
-        await autoPublishToSite({
-          articleId: inserted.id,
-          article,
-          userId: job.user_id,
-          siteId: job.auto_publish_site_id,
-          live: job.auto_publish_live,
-          log,
-        });
-      } catch (e) {
-        // Auto-publish failure is logged + reported but does NOT fail
-        // the whole job — the article was generated and stored. The
-        // user can retry publish from the dashboard.
-        const msg = e instanceof Error ? e.message : String(e);
-        log(`auto-publish failed (article still saved as draft): ${msg}`);
-        Sentry.captureException(e, {
-          tags: { worker_path: "auto_publish" },
-          contexts: { job: { id: job.id, keyword: job.keyword } },
-        });
-      }
-    }
+    // 4c. No auto-publish. Every generated article sits in
+    //     'pending_review' for a human audit before it can go live.
+    //     A DB trigger emails the founder; approval happens in the
+    //     admin review queue. job.auto_publish_site_id is still kept
+    //     on the row for post-approval publishing — it's just not
+    //     acted on at generation time. (autoPublishToSite is retained
+    //     for if/when trusted auto-publish returns.)
 
     // 5. Increment quota usage (only on success).
     const { data: newUsed, error: incErr } = await admin.rpc(
