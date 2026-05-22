@@ -17,6 +17,7 @@ import Sites from './pages/Sites.jsx';
 import Usage from './pages/Usage.jsx';
 import Voice from './pages/Voice.jsx';
 import Settings from './pages/Settings.jsx';
+import Review from './pages/Review.jsx';
 import Terms from './pages/Terms.jsx';
 import Privacy from './pages/Privacy.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -85,6 +86,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/review"
+              element={
+                <ProtectedRoute>
+                  <Review />
                 </ProtectedRoute>
               }
             />

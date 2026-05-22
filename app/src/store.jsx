@@ -25,7 +25,7 @@ export function AuthProvider({ children }) {
       if (cancelled) return;
       const { data } = await supabase
         .from('profiles')
-        .select('id, email, full_name, plan, created_at')
+        .select('id, email, full_name, plan, is_admin, created_at')
         .eq('id', session.user.id)
         .maybeSingle();
       if (!cancelled) setProfile(data ?? null);
@@ -134,7 +134,7 @@ export function AuthProvider({ children }) {
         .from('profiles')
         .update(patch)
         .eq('id', user.id)
-        .select('id, email, full_name, plan, created_at')
+        .select('id, email, full_name, plan, is_admin, created_at')
         .single();
       if (error) return { ok: false, error: error.message };
       setProfile(data);

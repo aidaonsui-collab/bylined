@@ -19,9 +19,14 @@ const NAV_LINKS = [
 ];
 
 export default function AppNav({ activeSub }) {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+
+  // The admin-only review queue link is appended for admins only.
+  const links = profile?.is_admin
+    ? [...NAV_LINKS, { to: '/app/review', label: 'Review' }]
+    : NAV_LINKS;
 
   useEffect(() => { setOpen(false); }, [pathname]);
 
@@ -45,7 +50,7 @@ export default function AppNav({ activeSub }) {
         </Link>
 
         <nav className="app-nav-links">
-          {NAV_LINKS.map((l) => (
+          {links.map((l) => (
             <Link key={l.to} to={l.to}>{l.label}</Link>
           ))}
         </nav>
@@ -95,7 +100,7 @@ export default function AppNav({ activeSub }) {
         )}
 
         <nav className="app-nav-panel-links">
-          {NAV_LINKS.map((l) => (
+          {links.map((l) => (
             <Link key={l.to} to={l.to}>{l.label}</Link>
           ))}
         </nav>
