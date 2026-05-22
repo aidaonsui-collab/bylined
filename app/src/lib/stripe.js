@@ -3,6 +3,25 @@ import { supabase, isSupabaseConfigured } from './supabase.js';
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
+// Guard: this variable must hold a *publishable* key (pk_…). A secret
+// key (sk_…) or restricted key (rk_…) here is a serious misconfig —
+// Vite inlines the value into the public JS bundle, so a secret key
+// would be exposed to every visitor. (This happened once: a secret key
+// was pasted here and shipped.) An empty value is fine — billing just
+// stays disabled — so only a present, wrong-type key trips the guard.
+// This is a RUNTIME check; by the time it runs the build already
+// inlined the value, so it can't un-ship a bad bundle. It exists to
+// turn a silent leak into a loud, self-explanatory crash. The check
+// that actually blocks a bad bundle from shipping lives in the build.
+if (PUBLISHABLE_KEY && !PUBLISHABLE_KEY.startsWith('pk_')) {
+  throw new Error(
+    'VITE_STRIPE_PUBLISHABLE_KEY must be a publishable key (starts with "pk_"). ' +
+      'It currently holds a non-publishable key — a secret (sk_) or restricted (rk_) ' +
+      'key here is exposed to every browser. Rotate that key immediately and set the ' +
+      'publishable key instead.',
+  );
+}
+
 // loadStripe is heavy and async; share one instance across the app.
 export const stripePromise = PUBLISHABLE_KEY ? loadStripe(PUBLISHABLE_KEY) : null;
 export const isStripeConfigured = Boolean(PUBLISHABLE_KEY);
