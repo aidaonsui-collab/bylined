@@ -114,7 +114,7 @@
   <section class="mkt-section mkt-section-tight" style="background: var(--surface);">
     <div class="mkt-container">
       <div class="mkt-eyebrow eyebrow">The pipeline</div>
-      <h2 class="mkt-h2 serif">Six stages. One ships, one rejects.</h2>
+      <h2 class="mkt-h2 serif">Five stages. One ships, one rejects.</h2>
       <p class="mkt-h2-sub">An article either passes the verification gate at stage 4 or it doesn't get published. There's no "best effort" mode.</p>
 
       <div class="pipeline">
@@ -163,14 +163,6 @@
           </div>
         </div>
 
-        <div class="stage">
-          <div class="stage-num">06</div>
-          <div>
-            <div class="stage-h">Re-verify on a schedule</div>
-            <p class="stage-p">Every published article's receipts are re-checked weekly. If a source moves or the page changes, you get an email with the affected articles and one-click options to re-source or accept the snapshot.</p>
-            <div class="stage-tech">Cron weekly · email digest of drift, not noise</div>
-          </div>
-        </div>
       </div>
     </div>
   </section>
@@ -209,22 +201,17 @@
       <div class="mkt-eyebrow eyebrow">The number we report</div>
       <h2 class="mkt-h2 serif" style="margin: 0 auto 16px;">% of claims that pass the gate.</h2>
       <p class="mkt-h2-sub" style="margin: 0 auto 32px;">
-        Internally we track the share of generated claims that pass verification on the first pass and on each re-verification. We publish the rolling number on our status page and refuse to ship the product if it dips below 95%. If you're going to charge for "with receipts," the receipts have to actually verify.
+        Internally we track the share of generated claims that pass verification on the first pass. We refuse to ship the product if it dips below 95%. If you're going to charge for "with receipts," the receipts have to actually verify.
       </p>
       <div style="display: inline-flex; gap: 32px; align-items: center; padding: 24px 36px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-card);">
         <div style="text-align: left;">
           <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--accent-text); letter-spacing: -0.02em;">97.1<span style="font-size: 18px;">%</span></div>
           <div style="color: var(--fg-muted); font-size: 12.5px;">first-pass verification (rolling)</div>
         </div>
-        <div style="height: 48px; width: 1px; background: var(--border);"></div>
-        <div style="text-align: left;">
-          <div class="mono" style="font-size: 36px; font-weight: 600; color: var(--fg); letter-spacing: -0.02em;">100<span style="font-size: 18px;">%</span></div>
-          <div style="color: var(--fg-muted); font-size: 12.5px;">re-verify at 5 minutes</div>
-        </div>
       </div>
       <p style="margin-top: 16px; font-size: 12px; color: var(--fg-subtle);">
-        <!-- Numbers reflect early internal benchmarks across 4 keywords. The 90-day re-verification number will replace the 5-minute one once we have enough archived runs. Current measurement methodology: pass rate = (citations passing all 5 validation gates) / (citations attempted). -->
-        Early benchmarks · 90-day metric replaces the 5-min one once enough runs are archived.
+        <!-- Measurement: pass rate = (citations passing all 5 validation gates) / (citations attempted). Early internal benchmark — small keyword sample. -->
+        Early internal benchmark across a small keyword sample.
       </p>
     </div>
   </section>
