@@ -1,0 +1,12 @@
+-- sites.user_id default.
+--
+-- The sites table was created with `user_id uuid NOT NULL` but NO default.
+-- The app's site-connect form (Sites.jsx) inserts a row without setting
+-- user_id, so the RLS WITH CHECK (auth.uid() = user_id) failed and every
+-- WordPress / Webflow / Shopify / Webhook connection attempt errored with
+-- "new row violates row-level security policy for table sites".
+--
+-- Default user_id to auth.uid() — the standard Supabase ownership pattern.
+-- An authenticated insert now lands a row owned by the caller, satisfying
+-- the policy. No frontend change needed.
+alter table public.sites alter column user_id set default auth.uid();
