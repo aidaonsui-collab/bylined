@@ -358,8 +358,8 @@
         'is-error',
         '<div class="demo-error">' + esc(message) +
           '</div><div class="demo-result-cta" style="margin-top:14px">' +
-          '<a class="btn btn-primary" href="/request-access">' +
-          'Request access</a></div>'
+          '<a class="btn btn-primary" href="/pricing">' +
+          'See plans</a></div>'
       );
     }
 
@@ -462,9 +462,9 @@
             ? '<div class="demo-receipts-h">Source receipts</div>' + receipts
             : '') +
           '<div class="demo-result-cta">' +
-            '<a class="btn btn-primary btn-lg" href="/request-access">' +
-            'Request access to get this published <svg class="icon"><use href="#i-arrow-right"/></svg></a>' +
-            '<span class="demo-cta-note">This is a sample. Work with Bylined and we research, write, review, and publish content like it — for you.</span>' +
+            '<a class="btn btn-primary btn-lg" href="/pricing">' +
+            'See plans <svg class="icon"><use href="#i-arrow-right"/></svg></a>' +
+            '<span class="demo-cta-note">This is a sample. Pick a plan and Bylined researches, writes, reviews, and publishes content like it — for you. Every plan starts free.</span>' +
           '</div>'
       );
     }
