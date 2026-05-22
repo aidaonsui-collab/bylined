@@ -1,7 +1,7 @@
 // publish-article
 //
 // Publishes a Bylined article to a connected CMS. Supported: WordPress,
-// Webflow.
+// Webflow, Shopify, a generic signed webhook, and the Bylined-hosted blog.
 //
 // Input:  { article_id, site_id, live? }   live=true → status="publish",
 //                                          else status="draft" so the user
@@ -21,6 +21,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+// Used only on the admin path — lets a founder approving a customer's
+// article from the review queue publish an article they don't own.
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -306,6 +309,188 @@ async function publishWebflow(
   };
 }
 
+// ─── Webhook publisher ─────────────────────────────────────────────────
+//
+// Universal escape hatch: POST the article to a URL the customer owns,
+// so Bylined can reach any platform the native publishers don't (Zapier,
+// Make, n8n, a custom endpoint). When a secret is set, the body carries
+// an HMAC-SHA256 signature so the receiver can verify it's really us.
+
+interface WebhookConfig {
+  url: string;
+  secret?: string;
+}
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(message),
+  );
+  return [...new Uint8Array(sig)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function publishWebhook(
+  cfg: WebhookConfig,
+  args: {
+    article_id: string;
+    title: string;
+    slug: string;
+    meta_description: string;
+    html: string;
+    markdown: string;
+    receipts: Receipt[];
+    live: boolean;
+  },
+): Promise<{ id: string; url: string; status: string; edit_url: string }> {
+  const payload = {
+    event: "article.published",
+    article_id: args.article_id,
+    title: args.title,
+    slug: args.slug,
+    meta_description: args.meta_description,
+    html: args.html,
+    markdown: args.markdown,
+    receipts: args.receipts,
+    live: args.live,
+    published_at: new Date().toISOString(),
+  };
+  const bodyStr = JSON.stringify(payload);
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "User-Agent": "BylinedBot/0.1 (+https://getbylined.com/bot)",
+  };
+  if (cfg.secret) {
+    headers["X-Bylined-Signature"] =
+      `sha256=${await hmacSha256Hex(cfg.secret, bodyStr)}`;
+  }
+
+  const res = await fetch(cfg.url, {
+    method: "POST",
+    headers,
+    body: bodyStr,
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 300);
+    throw new Error(
+      `Webhook ${res.status}: ${detail || "endpoint rejected the POST"}`,
+    );
+  }
+  return {
+    id: "webhook",
+    url: cfg.url,
+    status: args.live ? "publish" : "draft",
+    edit_url: cfg.url,
+  };
+}
+
+// ─── Shopify publisher ─────────────────────────────────────────────────
+//
+// Posts to a Shopify storefront blog via the Admin API. The customer
+// supplies a custom-app Admin API access token + the numeric blog ID.
+// NOTE: shipped without a live test store — the first real publish is
+// the first real verification.
+
+interface ShopifyConfig {
+  shop_domain: string;
+  access_token: string;
+  blog_id: string;
+}
+
+const SHOPIFY_API_VERSION = "2024-10";
+
+async function publishShopify(
+  cfg: ShopifyConfig,
+  args: {
+    title: string;
+    content: string;
+    excerpt: string;
+    slug: string;
+    live: boolean;
+    existing_post_id?: string | null;
+  },
+): Promise<{ id: string; url: string; status: string; edit_url: string }> {
+  const shop = cfg.shop_domain
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+  const apiBase = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}`;
+  const headers = {
+    "X-Shopify-Access-Token": cfg.access_token,
+    "Content-Type": "application/json",
+    "User-Agent": "BylinedBot/0.1 (+https://getbylined.com/bot)",
+  };
+
+  const isUpdate = Boolean(args.existing_post_id);
+  const endpoint = isUpdate
+    ? `${apiBase}/blogs/${cfg.blog_id}/articles/${args.existing_post_id}.json`
+    : `${apiBase}/blogs/${cfg.blog_id}/articles.json`;
+
+  const articlePayload: Record<string, unknown> = {
+    title: args.title,
+    body_html: args.content,
+    handle: args.slug,
+    published: args.live, // Shopify: published=true → visible on the storefront
+  };
+  if (args.excerpt) articlePayload.summary_html = args.excerpt;
+
+  const res = await fetch(endpoint, {
+    method: isUpdate ? "PUT" : "POST",
+    headers,
+    body: JSON.stringify({ article: articlePayload }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    let detail = await res.text().catch(() => "");
+    try {
+      const parsed = JSON.parse(detail);
+      if (parsed?.errors) detail = JSON.stringify(parsed.errors);
+    } catch {
+      /* keep raw */
+    }
+    throw new Error(`Shopify ${res.status}: ${detail.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as { article: { id: number; handle: string } };
+  const a = data.article;
+
+  // The article response has no public URL. Build one from the blog's
+  // handle (one extra GET); fall back to the admin URL if that fails.
+  const adminUrl = `https://${shop}/admin/articles/${a.id}`;
+  let publicUrl = adminUrl;
+  try {
+    const blogRes = await fetch(`${apiBase}/blogs/${cfg.blog_id}.json`, {
+      headers,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (blogRes.ok) {
+      const blog = (await blogRes.json()) as { blog?: { handle?: string } };
+      if (blog.blog?.handle) {
+        publicUrl = `https://${shop}/blogs/${blog.blog.handle}/${a.handle}`;
+      }
+    }
+  } catch {
+    /* keep the admin-URL fallback */
+  }
+
+  return {
+    id: String(a.id),
+    url: publicUrl,
+    status: args.live ? "publish" : "draft",
+    edit_url: adminUrl,
+  };
+}
+
 // ─── Bylined-hosted blog publisher ─────────────────────────────────────
 //
 // Writes a row to public.blog_posts (anon-readable when status='published'),
@@ -420,6 +605,23 @@ Deno.serve(async (req) => {
     } = await userClient.auth.getUser();
     if (userErr || !user) return jsonResponse(401, { error: "Unauthorized" });
 
+    // Admin path: a founder approving a customer's article from the
+    // review queue publishes an article they don't own. For admins we
+    // run every DB op with the service-role client so RLS doesn't hide
+    // the other account's article + site rows. Non-admins keep the
+    // JWT-scoped client — RLS still enforces ownership for them.
+    const { data: callerProfile } = await userClient
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+    const isAdmin = callerProfile?.is_admin === true;
+    const db = isAdmin
+      ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+          auth: { persistSession: false },
+        })
+      : userClient;
+
     const body = (await req.json().catch(() => null)) as
       | { article_id?: string; site_id?: string; live?: boolean }
       | null;
@@ -427,11 +629,12 @@ Deno.serve(async (req) => {
       return jsonResponse(400, { error: "article_id and site_id required" });
     }
 
-    // Fetch article (RLS: must be owner).
-    const { data: article, error: aErr } = await userClient
+    // Fetch article. Non-admin: RLS requires ownership. Admin: service-
+    // role client, so any account's article resolves.
+    const { data: article, error: aErr } = await db
       .from("articles")
       .select(
-        "id, title, meta_description, body_markdown, receipts, " +
+        "id, user_id, title, meta_description, body_markdown, receipts, " +
           "site_id, cms_post_id"
       )
       .eq("id", body.article_id)
@@ -440,8 +643,8 @@ Deno.serve(async (req) => {
       return jsonResponse(404, { error: "Article not found." });
     }
 
-    // Fetch site (RLS: must be owner).
-    const { data: site, error: sErr } = await userClient
+    // Fetch site (non-admin: RLS requires ownership).
+    const { data: site, error: sErr } = await db
       .from("sites")
       .select("id, name, cms_type, cms_config, is_active")
       .eq("id", body.site_id)
@@ -512,8 +715,8 @@ Deno.serve(async (req) => {
       });
       result = { id: r.id, url: r.url, edit_url: r.edit_url, status: r.status };
     } else if (site.cms_type === "bylined_hosted") {
-      const r = await publishBylinedHosted(userClient, {
-        user_id: user.id,
+      const r = await publishBylinedHosted(db, {
+        user_id: article.user_id,
         article_id: article.id,
         site_id: site.id,
         title: article.title,
@@ -522,6 +725,42 @@ Deno.serve(async (req) => {
         sources_html: sourcesHtml,
         slug,
         live,
+      });
+      result = { id: r.id, url: r.url, edit_url: r.edit_url, status: r.status };
+    } else if (site.cms_type === "webhook") {
+      const cfg = site.cms_config as Partial<WebhookConfig>;
+      if (!cfg?.url) {
+        return jsonResponse(400, { error: "Site is missing a webhook URL." });
+      }
+      const r = await publishWebhook(cfg as WebhookConfig, {
+        article_id: article.id,
+        title: article.title,
+        slug,
+        meta_description: article.meta_description ?? "",
+        html: fullContent,
+        markdown: article.body_markdown,
+        receipts: (article.receipts ?? []) as Receipt[],
+        live,
+      });
+      result = { id: r.id, url: r.url, edit_url: r.edit_url, status: r.status };
+    } else if (site.cms_type === "shopify") {
+      const cfg = site.cms_config as Partial<ShopifyConfig>;
+      if (!cfg?.shop_domain || !cfg?.access_token || !cfg?.blog_id) {
+        return jsonResponse(400, {
+          error:
+            "Site is missing Shopify credentials (shop domain, access " +
+            "token, or blog ID).",
+        });
+      }
+      const existingPostId =
+        article.site_id === site.id ? article.cms_post_id : null;
+      const r = await publishShopify(cfg as ShopifyConfig, {
+        title: article.title,
+        content: fullContent,
+        excerpt: article.meta_description ?? "",
+        slug,
+        live,
+        existing_post_id: existingPostId,
       });
       result = { id: r.id, url: r.url, edit_url: r.edit_url, status: r.status };
     } else {
@@ -534,7 +773,7 @@ Deno.serve(async (req) => {
     // when the CMS-side status is the live one; otherwise keep our status
     // as 'draft' (post exists in CMS but is staged).
     const wpLive = result.status === "publish";
-    await userClient
+    await db
       .from("articles")
       .update({
         site_id: site.id,

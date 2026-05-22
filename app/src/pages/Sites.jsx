@@ -228,6 +228,20 @@ function AddSiteForm({ onCancel, onSaved, toast }) {
           onSaved={onSaved}
           toast={toast}
         />
+      ) : cmsType === 'shopify' ? (
+        <ShopifyFields
+          name={name}
+          onCancel={onCancel}
+          onSaved={onSaved}
+          toast={toast}
+        />
+      ) : cmsType === 'webhook' ? (
+        <WebhookFields
+          name={name}
+          onCancel={onCancel}
+          onSaved={onSaved}
+          toast={toast}
+        />
       ) : null}
     </div>
   );
@@ -420,6 +434,267 @@ function WordPressFields({ name, onCancel, onSaved, toast }) {
           title={!verified ? 'Verify the connection first.' : undefined}
         >
           {saving ? 'Saving…' : 'Save site'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Shopify + Webhook connect forms. Unlike WordPress/Webflow these save
+// without a pre-flight verify step — the credentials are validated on
+// the first publish (publish-article returns a clear error if they're
+// wrong). Keeps the form simple and avoids a separate verify function.
+
+function ShopifyFields({ name, onCancel, onSaved, toast }) {
+  const [shopDomain, setShopDomain] = useState('');
+  const [accessToken, setAccessToken] = useState('');
+  const [blogId, setBlogId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const filled = shopDomain && accessToken && blogId;
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    const shop = shopDomain
+      .trim()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/+$/, '')
+      .toLowerCase();
+    if (!shop.includes('.')) {
+      setError('Enter your full shop domain, e.g. yourstore.myshopify.com.');
+      return;
+    }
+    if (!/^\d+$/.test(blogId.trim())) {
+      setError('Blog ID should be the numeric ID from your Shopify admin.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error: insertError } = await supabase.from('sites').insert({
+      name: name.trim() || shop,
+      domain: shop,
+      cms_type: 'shopify',
+      cms_config: {
+        shop_domain: shop,
+        access_token: accessToken.trim(),
+        blog_id: blogId.trim(),
+      },
+      is_active: true,
+    });
+    setSaving(false);
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    toast('Shopify store connected.', { tone: 'success' });
+    onSaved();
+  };
+
+  return (
+    <form
+      onSubmit={handleSave}
+      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+    >
+      <label className="field">
+        <span className="field-label">Shop domain</span>
+        <input
+          className="input"
+          type="text"
+          value={shopDomain}
+          onChange={(e) => setShopDomain(e.target.value)}
+          placeholder="yourstore.myshopify.com"
+          autoComplete="off"
+          required
+        />
+      </label>
+
+      <label className="field">
+        <span className="field-label">
+          Admin API access token
+          <a
+            className="field-label-action"
+            href="https://help.shopify.com/en/manual/apps/app-types/custom-apps"
+            target="_blank"
+            rel="noreferrer"
+          >
+            How?
+          </a>
+        </span>
+        <input
+          className="input"
+          type="password"
+          value={accessToken}
+          onChange={(e) => setAccessToken(e.target.value)}
+          placeholder="shpat_…"
+          autoComplete="new-password"
+          required
+        />
+        <span style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>
+          Shopify admin → Settings → Apps and sales channels → Develop apps →
+          create a custom app with <code>write_content</code> scope.
+        </span>
+      </label>
+
+      <label className="field">
+        <span className="field-label">Blog ID</span>
+        <input
+          className="input"
+          type="text"
+          value={blogId}
+          onChange={(e) => setBlogId(e.target.value)}
+          placeholder="e.g. 123456789"
+          inputMode="numeric"
+          autoComplete="off"
+          required
+        />
+        <span style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>
+          The numeric ID of the blog to post into — it's the number in the
+          admin URL when you open that blog (.../admin/blogs/<b>ID</b>).
+        </span>
+      </label>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: 'rgba(245,200,66,0.10)',
+            border: '1px solid rgba(245,200,66,0.20)',
+            color: 'var(--warn)',
+            padding: '10px 12px',
+            borderRadius: 7,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+          Credentials are checked on the first publish.
+        </span>
+        <div style={{ flex: 1 }} />
+        <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+          Cancel
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={saving || !filled}>
+          {saving ? 'Saving…' : 'Save store'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function WebhookFields({ name, onCancel, onSaved, toast }) {
+  const [url, setUrl] = useState('');
+  const [secret, setSecret] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    let parsed;
+    try {
+      parsed = new URL(url.trim());
+    } catch {
+      setError('Enter a valid URL.');
+      return;
+    }
+    if (parsed.protocol !== 'https:') {
+      setError('Webhook URL must use https://.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error: insertError } = await supabase.from('sites').insert({
+      name: name.trim() || parsed.hostname,
+      domain: parsed.hostname,
+      cms_type: 'webhook',
+      cms_config: {
+        url: parsed.toString(),
+        secret: secret.trim() || null,
+      },
+      is_active: true,
+    });
+    setSaving(false);
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    toast('Webhook connected.', { tone: 'success' });
+    onSaved();
+  };
+
+  return (
+    <form
+      onSubmit={handleSave}
+      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+    >
+      <label className="field">
+        <span className="field-label">Webhook URL</span>
+        <input
+          className="input"
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://hooks.example.com/bylined"
+          autoComplete="off"
+          required
+        />
+        <span style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>
+          Bylined POSTs each approved article here as JSON (title, slug, html,
+          markdown, receipts). Point it at Zapier, Make, n8n, or your own
+          endpoint to reach any platform.
+        </span>
+      </label>
+
+      <label className="field">
+        <span className="field-label">
+          Signing secret <span style={{ color: 'var(--fg-subtle)' }}>(optional)</span>
+        </span>
+        <input
+          className="input"
+          type="password"
+          value={secret}
+          onChange={(e) => setSecret(e.target.value)}
+          placeholder="Used to sign each payload"
+          autoComplete="new-password"
+        />
+        <span style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>
+          If set, every POST carries an <code>X-Bylined-Signature</code> header
+          (HMAC-SHA256 of the body) so your endpoint can confirm it's us.
+        </span>
+      </label>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: 'rgba(245,200,66,0.10)',
+            border: '1px solid rgba(245,200,66,0.20)',
+            color: 'var(--warn)',
+            padding: '10px 12px',
+            borderRadius: 7,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+          No test step — the first published article is the first delivery.
+        </span>
+        <div style={{ flex: 1 }} />
+        <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+          Cancel
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={saving || !url}>
+          {saving ? 'Saving…' : 'Save webhook'}
         </button>
       </div>
     </form>

@@ -24,7 +24,19 @@ export const CMS_TYPES = [
     helpUrl:
       'https://developers.webflow.com/data/docs/access-token-management',
   },
-  { id: 'shopify', label: 'Shopify', available: false, helpUrl: null },
+  {
+    id: 'shopify',
+    label: 'Shopify',
+    available: true,
+    helpUrl:
+      'https://help.shopify.com/en/manual/apps/app-types/custom-apps',
+  },
+  {
+    id: 'webhook',
+    label: 'Webhook (any platform)',
+    available: true,
+    helpUrl: null,
+  },
   { id: 'ghost', label: 'Ghost', available: false, helpUrl: null },
 ];
 

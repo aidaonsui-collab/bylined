@@ -13,6 +13,7 @@ import { useAuth } from '../store.jsx';
 import AppNav from '../components/AppNav.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import { publishArticle } from '../lib/sites.js';
 
 function relTime(iso) {
   if (!iso) return '';
@@ -51,25 +52,58 @@ export default function Review() {
     if (profile?.is_admin) load();
   }, [profile?.is_admin]);
 
-  const act = async (id, status) => {
-    if (status === 'failed' && !confirm('Reject this article? It will be marked failed.')) {
-      return;
-    }
+  const reject = async (id) => {
+    if (!confirm('Reject this article? It will be marked failed.')) return;
     setBusyId(id);
     const { error: err } = await supabase.rpc('admin_set_article_status', {
       p_article_id: id,
-      p_status: status,
+      p_status: 'failed',
     });
     setBusyId(null);
     if (err) {
       toast(err.message || 'Action failed.', { tone: 'danger' });
       return;
     }
-    toast(
-      status === 'draft' ? 'Approved — now a publishable draft.' : 'Rejected.',
-      { tone: 'success' }
-    );
+    toast('Rejected.', { tone: 'success' });
     setArticles((prev) => (prev || []).filter((a) => a.id !== id));
+    setOpenId(null);
+  };
+
+  // Approving an article with a connected publish destination sends it
+  // live straight to the customer's CMS — publish-article runs the
+  // admin path so it can act on another account's article. With no site
+  // connected, it just becomes a publishable draft in their dashboard.
+  const approve = async (article) => {
+    setBusyId(article.id);
+    if (article.site_id) {
+      const res = await publishArticle({
+        article_id: article.id,
+        site_id: article.site_id,
+        live: true,
+      });
+      setBusyId(null);
+      if (!res.ok) {
+        toast(res.error || 'Publish failed.', { tone: 'danger' });
+        return;
+      }
+      toast(res.url ? `Published → ${res.url}` : 'Published live.', {
+        tone: 'success',
+      });
+    } else {
+      const { error: err } = await supabase.rpc('admin_set_article_status', {
+        p_article_id: article.id,
+        p_status: 'draft',
+      });
+      setBusyId(null);
+      if (err) {
+        toast(err.message || 'Approve failed.', { tone: 'danger' });
+        return;
+      }
+      toast('Approved — no site connected, saved as a draft.', {
+        tone: 'success',
+      });
+    }
+    setArticles((prev) => (prev || []).filter((a) => a.id !== article.id));
     setOpenId(null);
   };
 
@@ -119,8 +153,8 @@ export default function Review() {
                     isOpen={openId === a.id}
                     busy={busyId === a.id}
                     onToggle={() => setOpenId(openId === a.id ? null : a.id)}
-                    onApprove={() => act(a.id, 'draft')}
-                    onReject={() => act(a.id, 'failed')}
+                    onApprove={() => approve(a)}
+                    onReject={() => reject(a.id)}
                   />
                 ))}
               </div>
@@ -189,7 +223,7 @@ function ReviewCard({ article, isOpen, busy, onToggle, onApprove, onReject }) {
               {busy ? '…' : 'Reject'}
             </button>
             <button type="button" className="btn btn-sm btn-primary" onClick={onApprove} disabled={busy}>
-              {busy ? '…' : 'Approve → draft'}
+              {busy ? '…' : article.site_id ? 'Approve & publish' : 'Approve → draft'}
             </button>
           </div>
         </div>

@@ -266,8 +266,11 @@ async function runJob(job: Job): Promise<void> {
     const { data: inserted, error: insertErr } = await admin
       .from("articles")
       .insert({
+        // Carry the intended publish destination onto the article so the
+        // review queue can auto-publish to it on approval. Falls back to
+        // job.site_id for jobs queued without an auto-publish target.
         user_id: job.user_id,
-        site_id: job.site_id,
+        site_id: job.auto_publish_site_id ?? job.site_id,
         keyword: job.keyword,
         title: article.title,
         meta_description: article.meta_description,
