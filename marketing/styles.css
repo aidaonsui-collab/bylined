@@ -1230,12 +1230,35 @@ a { color: inherit; text-decoration: none; }
    Hero URL input + the "watching it work" panel. Drives request-demo /
    demo-status. See app.js. */
 
+/* Intro that sits above the scan box — the landing target for the
+   "Request access" CTAs. */
+.demo-intro {
+  margin-top: 36px;
+  max-width: 620px;
+}
+.demo-intro-h {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+  color: var(--fg);
+  margin: 0 0 6px;
+}
+.demo-intro-p {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  margin: 0;
+  text-wrap: pretty;
+}
 .demo-form {
   display: flex;
   gap: 10px;
-  margin: 28px 0 12px;
+  margin: 16px 0 12px;
   max-width: 620px;
   flex-wrap: wrap;
+  /* Offset for the 60px sticky nav so a #demo-form jump reveals the
+     intro above the box instead of parking it behind the nav. */
+  scroll-margin-top: 200px;
 }
 .demo-input-wrap {
   flex: 1 1 280px;

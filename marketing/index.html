@@ -146,6 +146,14 @@
       </p>
 
       <!-- ─── Live demo hook: paste URL → watch it write ─── -->
+      <!-- The "Request access" CTAs across the site link to #demo-form.
+           This intro sits directly above the form so that jump lands on
+           something self-explanatory; the form carries scroll-margin-top
+           so the sticky nav doesn't park it out of view. -->
+      <div class="demo-intro">
+        <h2 class="demo-intro-h serif">Start with a free scan.</h2>
+        <p class="demo-intro-p">Paste your website. We'll check whether AI recommends you yet — and show you what Bylined would do about it.</p>
+      </div>
       <form class="demo-form" id="demo-form" autocomplete="off">
         <div class="demo-input-wrap">
           <span class="demo-input-prefix">https://</span>
@@ -159,7 +167,7 @@
           />
         </div>
         <button class="btn btn-primary btn-lg" type="submit" id="demo-submit">
-          Check if AI mentions you <svg class="icon"><use href="#i-arrow-right"/></svg>
+          Scan your site — free <svg class="icon"><use href="#i-arrow-right"/></svg>
         </button>
       </form>
       <div class="hero-cta-fine">
