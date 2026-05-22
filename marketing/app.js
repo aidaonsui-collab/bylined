@@ -282,18 +282,9 @@
     }
     const POLL_TIMEOUT_MS = 240000; // give up after 4 min
 
-    // App origin for the post-demo CTAs — same rule as the page-load
-    // rewriter above; APP_ORIGIN_PROD is the placeholder to fill in
-    // after the first prod app deploy.
-    const _host = location.hostname;
-    const _onDevPort = location.port === '5188' || location.port === '5187';
-    const _onDevHost = _host === 'localhost' || _host === '127.0.0.1';
-    const appOrigin = (() => {
-      if (window.BYLINED_APP_ORIGIN) return window.BYLINED_APP_ORIGIN;
-      if (_onDevHost && _onDevPort) return APP_ORIGIN_DEV;
-      if (_onDevHost) return ''; // dev on some other port — leave links relative
-      return APP_ORIGIN_PROD;
-    })();
+    // Post-demo CTAs point at /request-access on this same (marketing)
+    // origin — Bylined is done-for-you, so the scan ends with "let's
+    // work together", not a self-serve signup on the app.
 
     const urlInput = document.getElementById('demo-url');
     const submitBtn = document.getElementById('demo-submit');
@@ -367,8 +358,8 @@
         'is-error',
         '<div class="demo-error">' + esc(message) +
           '</div><div class="demo-result-cta" style="margin-top:14px">' +
-          '<a class="btn btn-primary" href="' + appOrigin + '/sign-up">' +
-          'Start free instead</a></div>'
+          '<a class="btn btn-primary" href="/request-access">' +
+          'Request access</a></div>'
       );
     }
 
@@ -471,9 +462,9 @@
             ? '<div class="demo-receipts-h">Source receipts</div>' + receipts
             : '') +
           '<div class="demo-result-cta">' +
-            '<a class="btn btn-primary btn-lg" href="' + appOrigin + '/sign-up">' +
-            'Sign up free to publish this <svg class="icon"><use href="#i-arrow-right"/></svg></a>' +
-            '<span class="demo-cta-note">Your draft is ready — publishing to your CMS takes one click.</span>' +
+            '<a class="btn btn-primary btn-lg" href="/request-access">' +
+            'Request access to get this published <svg class="icon"><use href="#i-arrow-right"/></svg></a>' +
+            '<span class="demo-cta-note">This is a sample. Work with Bylined and we research, write, review, and publish content like it — for you.</span>' +
           '</div>'
       );
     }
@@ -486,7 +477,7 @@
       if (Date.now() - pollStartedAt > POLL_TIMEOUT_MS) {
         showError(
           'This is taking longer than usual — the worker may be busy. ' +
-          'Sign up free and your first article runs on a priority queue.'
+          'Try again in a moment.'
         );
         stopPolling();
         return;
@@ -513,7 +504,7 @@
         if (data.status === 'failed') {
           showError(
             (data.error || 'The run hit an error.') +
-              ' Try a different page, or start free.'
+              ' Try a different page.'
           );
           stopPolling();
           return;
