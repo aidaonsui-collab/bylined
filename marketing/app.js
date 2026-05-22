@@ -594,4 +594,99 @@
       requestDemo(currentUrl, 'article');
     });
   }
+
+  // ─── Request-access form (request-access.html) ─────────────────────
+  // Posts name / email / website / note to the request-access edge
+  // function. On success the form is swapped for the confirmation block;
+  // the founder alert email is fired server-side by a DB trigger.
+  (() => {
+    const form = document.getElementById('access-form');
+    if (!form) return;
+
+    const SUPABASE_FN = 'https://boatyhrefcilcxepnbbf.supabase.co/functions/v1';
+    // Anon publishable key — public by design.
+    const ANON_KEY = 'sb_publishable_bpV29JM65vrJI1pgUVlKdg_5ZDisV3Y';
+
+    const submitBtn = document.getElementById('access-submit');
+    const statusEl = document.getElementById('access-status');
+    const done = document.getElementById('access-done');
+    const f = {
+      name: document.getElementById('access-name'),
+      email: document.getElementById('access-email'),
+      website: document.getElementById('access-website'),
+      note: document.getElementById('access-note'),
+      hp: document.getElementById('access-company-fax'),
+    };
+
+    const setStatus = (msg, ok) => {
+      statusEl.textContent = msg || '';
+      statusEl.classList.toggle('is-ok', Boolean(ok));
+    };
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      setStatus('');
+      [f.name, f.email, f.website].forEach((el) => el.classList.remove('is-invalid'));
+
+      const name = f.name.value.trim();
+      const email = f.email.value.trim();
+      const website = f.website.value.trim();
+      const note = f.note.value.trim();
+
+      // Client-side checks mirror the edge function — fail fast, no round-trip.
+      if (name.length < 2) {
+        f.name.classList.add('is-invalid');
+        f.name.focus();
+        setStatus('Enter your name.');
+        return;
+      }
+      if (!emailRe.test(email)) {
+        f.email.classList.add('is-invalid');
+        f.email.focus();
+        setStatus('Enter a valid email address.');
+        return;
+      }
+      if (!website) {
+        f.website.classList.add('is-invalid');
+        f.website.focus();
+        setStatus('Enter your website.');
+        return;
+      }
+
+      const label = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending…';
+      try {
+        const res = await fetch(SUPABASE_FN + '/request-access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+          body: JSON.stringify({
+            name,
+            email,
+            website,
+            note,
+            company_fax: f.hp ? f.hp.value : '',
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          setStatus(data.error || 'Could not send your request. Try again.');
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = label;
+          return;
+        }
+        // Success — swap the form for the confirmation.
+        form.hidden = true;
+        if (done) {
+          done.hidden = false;
+          done.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } catch (err) {
+        setStatus('Network hiccup. Try again in a moment.');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = label;
+      }
+    });
+  })();
 })();

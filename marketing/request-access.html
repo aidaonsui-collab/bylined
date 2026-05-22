@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Bylined · Working with us</title>
+<title>Bylined · Request access</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="Bylined is a done-for-you service, not self-serve software. We onboard a small number of businesses by hand and set pricing around what each one actually needs." />
-<meta property="og:title" content="Bylined · Working with us" />
-<meta property="og:description" content="Bylined is a done-for-you service. We onboard a small number of businesses by hand and set pricing around what each one needs." />
+<meta name="description" content="Bylined is a done-for-you service. Tell us about your business and we'll see if it's a fit — we onboard a small number of businesses by hand." />
+<meta name="robots" content="noindex" />
+<meta property="og:title" content="Bylined · Request access" />
+<meta property="og:description" content="Tell us about your business and we'll see if Bylined is a fit." />
 <meta property="og:type" content="website" />
 <meta property="og:image" content="https://getbylined.com/og-default.png" />
 <meta property="og:image:width" content="1200" />
@@ -79,34 +80,73 @@
     </div>
   </nav>
 
-  <!-- ─── Working with Bylined ────────────────────────────────── -->
+  <!-- ─── Request access ──────────────────────────────────────── -->
   <section class="mkt-section">
     <div class="mkt-container mkt-container-narrow">
-      <div class="mkt-eyebrow eyebrow">Working with Bylined</div>
-      <h1 class="mkt-h2 serif" style="font-size:56px; margin:8px 0 0;">
-        Set up with you — not picked off a menu.
+      <div class="mkt-eyebrow eyebrow">Request access</div>
+      <h1 class="mkt-h2 serif" style="font-size:48px; margin:8px 0 0;">
+        Let's see if Bylined's a fit.
       </h1>
-      <p class="mkt-lede" style="margin-top:18px;">
-        Bylined isn't self-serve software you sign up for and figure out alone. It's a done-for-you service: we research, write, and publish the content that gets your business cited when customers ask AI for a recommendation — and every article is reviewed by both a human and AI before it goes live.
-      </p>
-      <p class="mkt-lede" style="margin-top:14px;">
-        Because of that, there are no public tiers and no per-article credits. We're onboarding a small number of businesses by hand right now, and pricing is set around what your business actually needs — your market, how much content, how fast you want to move. You'll know the number before anything starts.
+      <p class="mkt-lede" style="margin-top:16px;">
+        Bylined is done-for-you — we research, write, and publish the content that gets your business cited when customers ask AI for a recommendation. We onboard a small number of businesses by hand. Tell us about yours and we'll be in touch, usually within a day or two.
       </p>
 
-      <ul class="wedge-list" style="margin-top:30px;">
+      <!-- The form. On submit, app.js posts to the request-access edge
+           function and swaps in #access-done on success. -->
+      <form class="req-form" id="access-form" autocomplete="on" novalidate>
+        <div class="req-field">
+          <label class="req-label" for="access-name">Your name</label>
+          <input class="req-input" id="access-name" name="name" type="text" autocomplete="name" required />
+        </div>
+        <div class="req-field">
+          <label class="req-label" for="access-email">Email</label>
+          <input class="req-input" id="access-email" name="email" type="email" autocomplete="email" inputmode="email" required />
+        </div>
+        <div class="req-field">
+          <label class="req-label" for="access-website">Your website</label>
+          <input class="req-input" id="access-website" name="website" type="text" inputmode="url" placeholder="yourbusiness.com" autocomplete="url" required />
+        </div>
+        <div class="req-field">
+          <label class="req-label" for="access-note">
+            What does your business do? <span class="req-optional">optional</span>
+          </label>
+          <textarea class="req-input req-textarea" id="access-note" name="note" rows="3" maxlength="600" placeholder="One line is plenty — what you do and where."></textarea>
+        </div>
+
+        <!-- Honeypot: hidden from people, catches bots. Never filled by a
+             real visitor; if it has a value the server drops the request. -->
+        <div class="req-hp" aria-hidden="true">
+          <label for="access-company-fax">Company fax</label>
+          <input id="access-company-fax" name="company_fax" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <div class="req-actions">
+          <button class="btn btn-primary btn-lg" type="submit" id="access-submit">
+            Request access <svg class="icon"><use href="#i-arrow-right"/></svg>
+          </button>
+          <div class="req-status" id="access-status" role="status" aria-live="polite"></div>
+        </div>
+        <div class="hero-cta-fine" style="margin-top:6px;">
+          <svg class="icon icon-xs"><use href="#i-check"/></svg> No account to create
+          <span class="dot-sep"></span>
+          <svg class="icon icon-xs"><use href="#i-check"/></svg> No card, no commitment
+        </div>
+      </form>
+
+      <!-- Shown by app.js once the request goes through. -->
+      <div class="req-done" id="access-done" hidden>
+        <div class="req-done-mark"><svg class="icon"><use href="#i-check"/></svg></div>
+        <h2 class="mkt-h2 serif" style="font-size:30px; margin:0 0 8px;">Request received.</h2>
+        <p class="mkt-lede" style="margin:0;">
+          Thanks — we've got it. We'll take a look at your site and email you, usually within a day or two. In the meantime, you can <a href="/#demo-form">run a free scan</a> to see how AI answers about your business today.
+        </p>
+      </div>
+
+      <ul class="wedge-list" style="margin-top:38px;">
         <li><span class="mono">01</span><span><b>Every article is reviewed by AI and a human.</b> An automated pass checks every citation, then a person audits the whole piece before it publishes.</span></li>
         <li><span class="mono">02</span><span><b>Every claim has a source.</b> Each stat, quote, and citation links to its origin — you can verify the work, not just trust it.</span></li>
         <li><span class="mono">03</span><span><b>You approve before it ships.</b> Drafts come to you for a yes before anything goes live under your name.</span></li>
       </ul>
-
-      <div style="margin-top:34px;">
-        <a class="btn btn-primary btn-lg" href="/request-access">Request access <svg class="icon"><use href="#i-arrow-right"/></svg></a>
-      </div>
-      <div class="hero-cta-fine" style="margin-top:18px;">
-        <svg class="icon icon-xs"><use href="#i-check"/></svg> Tell us your website — we'll see if it's a fit
-        <span class="dot-sep"></span>
-        <svg class="icon icon-xs"><use href="#i-check"/></svg> No tiers, no credits, no card to start
-      </div>
     </div>
   </section>
 

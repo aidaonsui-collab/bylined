@@ -1294,6 +1294,90 @@ a { color: inherit; text-decoration: none; }
 .demo-form .btn { flex: 0 0 auto; }
 .demo-form .btn[disabled] { opacity: 0.55; cursor: progress; }
 
+/* ─── Request-access form (request-access.html) ──────────────────── */
+.req-form {
+  max-width: 520px;
+  margin: 32px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.req-field { display: flex; flex-direction: column; gap: 7px; }
+.req-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+.req-optional {
+  font-weight: 400;
+  color: var(--fg-subtle);
+  font-size: 12.5px;
+}
+.req-input {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  padding: 12px 14px;
+  outline: none;
+  width: 100%;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.req-input::placeholder { color: var(--fg-faint); }
+.req-input:focus-within,
+.req-input:focus {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 3px var(--accent-faint);
+}
+.req-input.is-invalid {
+  border-color: var(--danger);
+}
+.req-textarea { resize: vertical; min-height: 76px; line-height: 1.5; }
+/* Honeypot — visually and assistive-tech hidden, still in the DOM so a
+   dumb bot fills it. Not display:none (some bots skip those). */
+.req-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.req-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.req-actions .btn[disabled] { opacity: 0.55; cursor: progress; }
+.req-status { font-size: 13.5px; color: var(--danger); }
+.req-status.is-ok { color: var(--success); }
+
+/* Success state — replaces the form once the request goes through. */
+.req-done {
+  max-width: 560px;
+  margin: 32px 0 0;
+  padding: 26px 28px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.req-done-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-on);
+  margin-bottom: 14px;
+}
+.req-done a { color: var(--accent-text); text-decoration: underline; }
+
 /* The live panel. Hidden until a demo is requested. */
 .demo-live {
   margin-top: 28px;
