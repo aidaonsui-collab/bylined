@@ -21,6 +21,33 @@ import type { Article, Fact, Receipt } from "./types.js";
 //      the trimmed body just guarantees the per-article promise.
 const TARGET_PASS_RATE = Number(process.env.BYLINED_TARGET_PASS_RATE ?? 0.95);
 
+// Low-authority sources. The "receipts" promise is that every citation
+// resolves to something credible — a Yelp answer, a Reddit thread, or a
+// Pinterest pin is user-generated content, not a citable source. We drop
+// these from the SERP before crawling them for facts. Brand blogs,
+// publications, and how-to sites still get through.
+const LOW_AUTHORITY_HOSTS = [
+  "yelp.com",
+  "reddit.com",
+  "quora.com",
+  "pinterest.com",
+  "answers.com",
+  "facebook.com",
+  "instagram.com",
+  "tiktok.com",
+  "twitter.com",
+  "x.com",
+];
+
+function isLowAuthoritySource(rawUrl: string): boolean {
+  try {
+    const host = new URL(rawUrl).hostname.replace(/^www\./, "").toLowerCase();
+    return LOW_AUTHORITY_HOSTS.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
 export interface GenerateOptions {
   keyword: string;
   serpCount?: number;
@@ -32,10 +59,19 @@ export async function generate(opts: GenerateOptions): Promise<Article> {
   const log = opts.log ?? ((msg: string) => console.log(`[bylined] ${msg}`));
   const startedAt = new Date().toISOString();
 
-  // 1. SERP fetch (Brave in production, DDG fallback for local dev)
+  // 1. SERP fetch (Brave in production, DDG fallback for local dev),
+  //    then drop user-generated / social sources so they never become
+  //    citations.
   log(`searching SERP for: ${opts.keyword}`);
-  const serpResults = await search(opts.keyword, opts.serpCount ?? 10);
-  log(`SERP returned ${serpResults.length} results`);
+  const rawSerp = await search(opts.keyword, opts.serpCount ?? 10);
+  const serpResults = rawSerp.filter((r) => !isLowAuthoritySource(r.url));
+  const droppedCount = rawSerp.length - serpResults.length;
+  log(
+    `SERP returned ${rawSerp.length} results` +
+      (droppedCount > 0
+        ? ` (dropped ${droppedCount} low-authority: Yelp/Reddit/Quora/social)`
+        : "")
+  );
   if (serpResults.length === 0) {
     throw new Error(
       "Search returned no results for this keyword — can't build a sourced article."

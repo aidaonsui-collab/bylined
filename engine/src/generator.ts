@@ -55,6 +55,13 @@ CRITICAL RULES (any violation invalidates the citation):
 
 8. RELEVANCE OVER LENGTH. The facts library is a menu, not a checklist — use ONLY the facts that help the reader do the specific thing the title promises. A fact can be accurate, well-sourced, and still not belong: if it does not serve the reader's actual goal, leave it out. Never add a section just to reach the word count. If you catch yourself writing "this won't come up", "though you may not need this", or similar hedges — delete that section entirely. A tight 900-word article with zero filler beats a padded 1300-word one. The word range in LENGTH & CITATIONS below is a ceiling for RELEVANT material, not a quota to fill.
 
+9. STATE EACH FACT EXACTLY ONCE, IN YOUR OWN WORDS. body_markdown is original prose. NEVER copy a fact's exact_passage — or a sentence nearly identical to it — into body_markdown. NEVER write your own sentence and then restate the same fact in a second, near-duplicate sentence beside it. The "claim" is a short phrase lifted from YOUR original sentence; "exact_quote_used" is the source's separate wording — they carry the same facts and numbers but MUST read as different sentences. If two adjacent sentences would say the same thing, you have a bug — write one.
+   BAD (the same fact written twice — never do this):
+     "Salon treatments last the longest. Salon treatments tend to last the longest, often up to 6 months with proper aftercare."
+   GOOD (written once, in your words):
+     body_markdown: "...salon treatments last the longest, often up to 6 months with good aftercare."
+     citations: [{ "claim": "often up to 6 months with good aftercare", "source_id": "f2", "exact_quote_used": "often up to 6 months with proper aftercare" }]
+
 EXAMPLE (good):
   body_markdown: "Email marketing delivers an average $36 return for every $1 spent, the highest ROI of any channel."
   citations: [{
