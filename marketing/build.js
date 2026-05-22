@@ -101,7 +101,7 @@ function shell({ title, description, bodyClass = '', content, head = '' }) {
       </div>
       <div class="mkt-nav-cta">
         <a class="btn btn-sm btn-ghost" href="/sign-in">Sign in</a>
-        <a class="btn btn-primary btn-sm" href="mailto:founders@getbylined.com?subject=Bylined%20access%20request">Request access <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        <a class="btn btn-primary btn-sm" href="/#demo-form">Request access <svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
       </div>
     </div>
   </nav>
