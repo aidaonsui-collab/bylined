@@ -62,6 +62,10 @@ CRITICAL RULES (any violation invalidates the citation):
      body_markdown: "...salon treatments last the longest, often up to 6 months with good aftercare."
      citations: [{ "claim": "often up to 6 months with good aftercare", "source_id": "f2", "exact_quote_used": "often up to 6 months with proper aftercare" }]
 
+10. FAQ IS WRITTEN FRESH; FACTS STAY IN THEIR SECTION. Every FAQ answer is composed from scratch — never copy a sentence that already appears earlier in the body. An FAQ answer may address the same fact, but it must be phrased differently. And every fact belongs in exactly ONE section: the one whose heading it answers. Never drop a fact into a section it has nothing to do with (e.g. a longevity edge-case under a "when should you rebook" heading).
+
+11. ONE FIGURE PER CLAIM; TAKEAWAYS MATCH BODY. When sources disagree on a number for the same thing (e.g. one says "3 to 5 months", another "up to 6 months"), do NOT list them all — choose the single most representative range and state it once. Do not fact-dump every number you have. Every number and claim in "Key takeaways" MUST be consistent with the body — they must never contradict it.
+
 EXAMPLE (good):
   body_markdown: "Email marketing delivers an average $36 return for every $1 spent, the highest ROI of any channel."
   citations: [{
