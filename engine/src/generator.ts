@@ -1,6 +1,11 @@
-import { chatJSON } from "./clients/minimax.js";
+import { chatJSON as minimaxChatJSON, type ChatOptions, type Message } from "./clients/minimax.js";
 import { voicePromptFragment, type VoiceFingerprint } from "./clients/voice.js";
 import type { Fact } from "./types.js";
+
+// Pluggable JSON-chat function. Defaults to MiniMax (production).
+// compare-cli.ts passes the OpenAI client for the head-to-head test
+// without touching anything else in the pipeline.
+export type ChatJSONFn = <T>(messages: Message[], opts?: ChatOptions) => Promise<T>;
 
 export interface GenerationOutput {
   title: string;
@@ -46,7 +51,12 @@ CRITICAL RULES (any violation invalidates the citation):
 
 5. ALIGNMENT: every NUMBER in "claim" MUST also appear in "exact_quote_used". If your claim says "$36 for every $1 spent" then exact_quote_used must contain both "36" and "1". If your claim says "44%" then exact_quote_used must contain "44". This proves the citation actually supports the claim and isn't decoratively attached.
 
-6. body_markdown contains NO [^N] markers. The system inserts those automatically based on your citations.
+6. body_markdown contains NO inline citation markers OF ANY KIND. The "citations" array is the ONLY place citation links live. No "[^N]", no "[fN]" (the fact-library IDs you see in this prompt are for YOUR reference only — never write them into body_markdown), no "[N]", no "[Note N]". The system inserts inline markers automatically after generation. Your job is to write clean prose with ZERO bracketed citation references.
+   BAD: "...your classic light hair tone [f12]"
+   BAD: "...covers chestnut, brown, and brunette [^1]"
+   GOOD: "...your classic light hair tone."
+   GOOD: "...covers chestnut, brown, and brunette."
+   If you write any bracketed citation reference in body_markdown, it leaks into the published article as broken syntax — readers see "[f12]" sitting in the middle of a sentence. Use the citations[] array; never the body.
 
 7. NEVER write ABOUT your sources. State facts directly. The body must not name, describe, rate, or promote the websites, apps, or documents your facts came from — the citation system attributes sources separately, the prose never does. A source's self-description ("the world's most popular X", "a comprehensive guide to Y") is NOT a fact about your topic — never reproduce it.
    BAD: "SpanishDictionary.com is the world's most popular Spanish-English dictionary."
@@ -104,7 +114,9 @@ LENGTH & CITATIONS:
 export async function generateArticle(
   keyword: string,
   facts: Fact[],
-  voice?: VoiceFingerprint
+  voice?: VoiceFingerprint,
+  // Optional provider override — defaults to MiniMax in production.
+  chatJSONFn: ChatJSONFn = minimaxChatJSON
 ): Promise<GenerationOutput> {
   const factsLibrary = facts.map((f, i) => ({
     id: `f${i + 1}`,
@@ -127,14 +139,51 @@ ${JSON.stringify(factsLibrary, null, 2)}
 
 Write an SEO article. Body is plain prose with no [^N] markers — citations are linked via the claim field. Each claim must be an exact substring of your body_markdown.`;
 
-  return chatJSON<GenerationOutput>(
+  const generated = await chatJSONFn<GenerationOutput>(
     [
       { role: "system", content: systemContent },
       { role: "user", content: userPrompt },
     ],
     // 8000 = ~3000 tokens for reasoning + ~5000 for the JSON envelope
     // (1200-word article + citations array). chatJSON grows this 1.5×
-    // per retry if MiniMax still truncates.
+    // per retry if the provider truncates.
     { max_tokens: 8000, costType: "llm_generation" }
   );
+
+  // Defense in depth: even with Rule 6 explicit, models occasionally
+  // emit inline citation markers in body_markdown — most commonly the
+  // raw "[fN]" fact-library IDs they see in the prompt. Those leak into
+  // the rendered article as broken syntax. Strip them here so every
+  // downstream consumer (orchestrator, compare-cli, etc.) sees clean
+  // prose. Apply to each citation.claim too so claim-substring lookups
+  // in body still align.
+  if (typeof generated.body_markdown === "string") {
+    generated.body_markdown = stripStrayCitations(generated.body_markdown);
+  }
+  if (Array.isArray(generated.citations)) {
+    for (const c of generated.citations) {
+      if (c && typeof c.claim === "string") {
+        c.claim = stripStrayCitations(c.claim);
+      }
+    }
+  }
+  return generated;
+}
+
+// Remove inline citation markers the model may have written into prose
+// despite Rule 6. Conservative — only strips patterns that are
+// unambiguously citation references, never bare "[N]" (could be a
+// malformed list item) and never parenthetical text.
+function stripStrayCitations(s: string): string {
+  return s
+    // [^12] — footnote style (orchestrator inserts these LATER; any in
+    // raw output is the model getting ahead of itself).
+    .replace(/\s*\[\^\d+\]/g, "")
+    // [f12] / [F12] — raw fact-library IDs from the prompt.
+    .replace(/\s*\[[fF]\d+\]/g, "")
+    // [Note 12] / [note 12] — some models prefer this form.
+    .replace(/\s*\[Note\s+\d+\]/gi, "")
+    // Tidy any leftover whitespace-before-punctuation and double spaces.
+    .replace(/[ \t]+([.,;:!?])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ");
 }
