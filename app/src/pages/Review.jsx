@@ -187,8 +187,36 @@ function ReviewCard({ article, isOpen, busy, onToggle, onApprove, onReject }) {
           color: 'inherit',
         }}
       >
-        <div style={{ fontWeight: 600, color: 'var(--fg)' }}>
-          {article.title || article.keyword || '(untitled)'}
+        <div
+          style={{
+            fontWeight: 600,
+            color: 'var(--fg)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{article.title || article.keyword || '(untitled)'}</span>
+          {article.admin_edited_at && (
+            <span
+              title={`Trimmed by admin ${relTime(article.admin_edited_at)} — body and receipts have been cleaned`}
+              style={{
+                fontSize: 10.5,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: '#D4FF3F',
+                background: 'rgba(212, 255, 63, 0.10)',
+                border: '1px solid rgba(212, 255, 63, 0.35)',
+                borderRadius: 4,
+                padding: '2px 8px',
+                fontWeight: 600,
+                lineHeight: 1.2,
+              }}
+            >
+              ✦ Edited
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 3 }}>
           {[article.keyword, article.owner_email, relTime(article.generated_at), pass]
