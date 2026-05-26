@@ -13,6 +13,7 @@
     "costs": "tsx src/costs-cli.ts",
     "worker": "tsx src/worker.ts",
     "start": "tsx src/worker.ts",
+    "compare": "tsx src/compare-cli.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
